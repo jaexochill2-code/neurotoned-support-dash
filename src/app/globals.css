@@ -1,0 +1,123 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-sans);
+  --font-heading: var(--font-heading);
+  --font-mono: var(--font-mono);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+:root {
+  /* Chromatic Dark Green: Forest at Midnight */
+  --background: hsl(140, 43%, 5%); /* #060F09 */
+  --foreground: hsl(135, 10%, 96%); /* Very light sage-white, high contrast */
+  
+  --card: hsl(140, 29%, 6%); /* #0B1410 */
+  --card-foreground: hsl(135, 10%, 96%);
+  
+  --popover: hsl(140, 29%, 6%);
+  --popover-foreground: hsl(135, 10%, 96%);
+  
+  --primary: hsl(158, 65%, 52%); /* #34D399 emerald */
+  --primary-foreground: hsl(140, 43%, 5%);
+  
+  --secondary: hsl(143, 28%, 9%); /* #0D1E14 */
+  --secondary-foreground: hsl(135, 10%, 96%);
+  
+  --muted: hsl(143, 28%, 9%); /* #0D1E14 */
+  --muted-foreground: hsl(135, 15%, 75%); /* Lighter muted sage */
+  
+  --accent: hsl(143, 28%, 9%);
+  --accent-foreground: hsl(135, 15%, 82%);
+  
+  --destructive: hsl(0, 91%, 71%); /* #F87171 */
+  --destructive-foreground: hsl(140, 43%, 5%);
+  
+  --border: hsl(143, 24%, 11%); /* #152218 */
+  --input: hsl(143, 24%, 11%);
+  --ring: hsl(158, 65%, 52%);
+
+  /* Modern rounded corners */
+  --radius: 0.75rem;
+
+  --sidebar: hsl(140, 30%, 5%); /* #080F0B */
+  --sidebar-foreground: hsl(135, 10%, 96%);
+  --sidebar-primary: hsl(158, 65%, 52%);
+  --sidebar-primary-foreground: hsl(140, 43%, 5%);
+  --sidebar-accent: hsl(143, 28%, 9%);
+  --sidebar-accent-foreground: hsl(135, 10%, 96%);
+  --sidebar-border: hsl(143, 24%, 11%);
+  --sidebar-ring: hsl(158, 65%, 52%);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  
+  /* Prevent iOS Safari auto-zoom on form inputs by forcing 16px min size on mobile */
+  @media screen and (max-width: 768px) {
+    input, textarea, select {
+      font-size: 16px !important;
+    }
+  }
+}
+
+/* 
+ * NEW SAAS PRINCIPLES: Dribbble Match
+ * Crisp Borders & Ink-on-Paper
+ */
+.glass-panel-premium {
+  @apply bg-card border border-border rounded-xl transition-all duration-300;
+  /* Removed shadow, frosted glass logic in favor of border encapsulation */
+}
+
+/* Form inputs with focus states */
+.carved-input {
+  @apply bg-background border border-border 
+         focus:border-primary focus:ring-2 focus:ring-primary/20
+         transition-all duration-200 rounded-lg;
+}
+
+/* Subtle lifts for buttons */
+.hover-lift-premium {
+  @apply transition-all duration-200 ease-out
+         hover:-translate-y-0.5 hover:shadow-md
+         active:translate-y-0 active:shadow-sm;
+}
