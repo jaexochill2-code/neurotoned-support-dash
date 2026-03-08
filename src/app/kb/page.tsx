@@ -276,11 +276,6 @@ export default function KnowledgeBasePage() {
               <span className="text-[10px] font-bold tracking-widest uppercase">Admin</span>
             </motion.div>
           )}
-          {isAuthenticated && (
-            <Button onClick={handleNewDoc} className="hover-lift-premium gap-2 px-5 rounded-xl bg-primary hover:bg-primary/90 text-[13px] font-semibold h-10">
-              <FilePlus className="h-4 w-4" /> New Doc
-            </Button>
-          )}
         </div>
       </header>
 
