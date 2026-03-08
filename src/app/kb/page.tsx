@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import {
   FileText, Trash2, Save, CheckCircle2, Lock, BookOpen,
-  ChevronDown, ChevronUp, FilePlus, Search, AlertCircle,
+  ChevronDown, ChevronUp, FilePlus, Search, AlertCircle, AlertTriangle, X,
   Hash, Layers, ShoppingBag, MessageSquare, Shield, RefreshCw, ChevronRight, Edit3, ArrowLeft
 } from "lucide-react"
 import { toast } from "sonner"
@@ -116,6 +116,11 @@ export default function KnowledgeBasePage() {
   const [isSavingSops, setIsSavingSops]   = useState(false)
   const [rulesOpen, setRulesOpen]         = useState(false)
 
+  // Urgent Updates
+  const [urgentUpdate, setUrgentUpdate]   = useState("")
+  const [urgentDraft, setUrgentDraft]     = useState("")
+  const [isSavingUrgent, setIsSavingUrgent] = useState(false)
+
   // Editor modes
   const [isEditing, setIsEditing] = useState(false)
   const [editTitle,    setEditTitle]    = useState("")
@@ -157,8 +162,21 @@ export default function KnowledgeBasePage() {
 
   useEffect(() => {
     const init = async () => {
+      // Load urgent update publicly (no auth needed)
+      try {
+        const pubRes = await fetch("/api/sops?public=1");
+        if (pubRes.ok) { const d = await pubRes.json(); setUrgentUpdate(d.urgentUpdate || "") }
+      } catch {}
       try { const r = await fetch("/api/auth"); if (r.ok) setIsAuthenticated(true) } catch {} finally { setIsCheckingAuth(false) }
-      try { const r = await fetch("/api/sops"); if (r.ok) setSops((await r.json()).sops || "") } catch {} finally { setIsLoadingSops(false) }
+      try {
+        const r = await fetch("/api/sops");
+        if (r.ok) {
+          const d = await r.json();
+          setSops(d.sops || "");
+          setUrgentDraft(d.urgentUpdate || "");
+          setUrgentUpdate(d.urgentUpdate || "");
+        }
+      } catch {} finally { setIsLoadingSops(false) }
       await loadFiles()
     }
     init()
@@ -251,13 +269,66 @@ export default function KnowledgeBasePage() {
     finally { setIsSavingSops(false) }
   }
 
+  const handleSaveUrgent = async () => {
+    setIsSavingUrgent(true)
+    try {
+      await fetch("/api/sops", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ urgentUpdate: urgentDraft }) })
+      setUrgentUpdate(urgentDraft)
+      toast.success(urgentDraft ? "Urgent broadcast is now LIVE." : "Broadcast cleared.")
+    } catch { toast.error("Failed to save.") }
+    finally { setIsSavingUrgent(false) }
+  }
+
+  const handleClearUrgent = async () => {
+    setIsSavingUrgent(true)
+    try {
+      await fetch("/api/sops", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ urgentUpdate: "" }) })
+      setUrgentUpdate("")
+      setUrgentDraft("")
+      toast.success("Broadcast cleared.")
+    } catch { toast.error("Failed.") }
+    finally { setIsSavingUrgent(false) }
+  }
+
   const { words, chars } = wordCount(editContent)
   const headings = extractHeadings(activeFile?.content || "")
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col h-full space-y-6 animate-in fade-in duration-500 max-w-6xl mx-auto w-full pb-16 relative">
-      
+
+      {/* URGENT UPDATE BANNER */}
+      <AnimatePresence>
+        {urgentUpdate && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ type: "spring", stiffness: 300, damping: 25 }}
+            className="overflow-hidden"
+          >
+            <div className="flex items-center gap-3 px-5 py-3.5 bg-amber-500/10 border border-amber-500/20 rounded-xl mt-6 relative">
+              <div className="shrink-0">
+                <AlertTriangle className="w-5 h-5 text-amber-500 animate-pulse" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-amber-500/70 block mb-0.5">Urgent Update</span>
+                <p className="text-[13px] font-semibold text-amber-400 leading-snug">{urgentUpdate}</p>
+              </div>
+              {isAuthenticated && (
+                <button
+                  onClick={handleClearUrgent}
+                  className="shrink-0 p-1.5 rounded-lg hover:bg-amber-500/10 text-amber-500/50 hover:text-amber-500 transition-colors"
+                  title="Clear broadcast"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* HEADER */}
       <header className={cn("pt-6 md:pt-10 pb-8 relative z-10 flex flex-col md:flex-row md:items-end justify-between gap-4", mobileView === "reader" && "hidden md:flex")}>
         <div>
@@ -296,7 +367,44 @@ export default function KnowledgeBasePage() {
             <AnimatePresence>
               {rulesOpen && (
                 <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ type: "spring", stiffness: 200, damping: 20 }} className="overflow-hidden">
-                  <div className="px-6 pb-5">
+                  <div className="px-6 pb-5 space-y-5">
+                    {/* Urgent Broadcast Input */}
+                    <div className="bg-amber-500/5 border border-amber-500/15 rounded-xl p-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+                        <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-amber-500/80">Urgent Broadcast</span>
+                        {urgentUpdate && (
+                          <span className="text-[9px] font-bold uppercase tracking-widest bg-amber-500/15 text-amber-500 px-2 py-0.5 rounded-full ml-auto">LIVE</span>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={urgentDraft}
+                          onChange={e => setUrgentDraft(e.target.value)}
+                          placeholder="e.g. Stripe is down — pause all refunds until further notice"
+                          className="flex-1 bg-background border border-amber-500/20 rounded-lg px-3 py-2 text-[13px] font-medium placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-amber-500/30 text-[#F4F8F5]"
+                        />
+                        <Button
+                          onClick={handleSaveUrgent}
+                          disabled={isSavingUrgent}
+                          size="sm"
+                          className={cn(
+                            "gap-1.5 rounded-lg h-9 px-4 text-[12px] font-bold transition-all",
+                            urgentDraft
+                              ? "bg-amber-500 hover:bg-amber-600 text-black"
+                              : "bg-[#0D1E14] border border-[#152218] text-[#547A63]"
+                          )}
+                        >
+                          {urgentDraft ? "Broadcast" : "Clear"}
+                        </Button>
+                      </div>
+                      {urgentUpdate && (
+                        <p className="text-[11px] text-amber-500/50 mt-2 font-mono">Currently live: "{urgentUpdate}"</p>
+                      )}
+                    </div>
+
+                    {/* SOPs Textarea */}
                     <Textarea value={sops} onChange={e => setSops(e.target.value)} className="min-h-[160px] resize-none bg-background border border-border rounded-xl p-5 text-[13px] font-mono mb-3 focus-visible:ring-1 focus-visible:ring-primary/50 text-[#F4F8F5]" />
                     <div className="flex justify-end">
                       <Button onClick={handleSaveSops} disabled={isSavingSops} size="sm" className="gap-2 rounded-lg h-9">

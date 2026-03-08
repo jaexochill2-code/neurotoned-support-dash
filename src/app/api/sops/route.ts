@@ -15,20 +15,33 @@ async function ensureDataPath() {
 
 import { cookies } from "next/headers";
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
+    const { searchParams } = new URL(req.url);
+    const publicOnly = searchParams.get("public") === "1";
+
+    await ensureDataPath();
+    let parsed: any = { sops: "", urgentUpdate: "" };
+    try {
+      const data = await fs.readFile(dataFilePath, "utf8");
+      parsed = JSON.parse(data);
+    } catch (e: any) {
+      if (e.code !== "ENOENT") throw e;
+    }
+
+    // Public endpoint: return only the urgent update (no auth needed)
+    if (publicOnly) {
+      return NextResponse.json({ urgentUpdate: parsed.urgentUpdate || "" });
+    }
+
+    // Admin endpoint: return everything
     const cookieStore = await cookies();
     const token = cookieStore.get("neurotoned_admin_token")?.value;
     if (token !== "authenticated") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    await ensureDataPath();
-    const data = await fs.readFile(dataFilePath, "utf8");
-    return NextResponse.json(JSON.parse(data));
-  } catch (error: any) {
-    if (error.code === "ENOENT") {
-      return NextResponse.json({ sops: "" });
-    }
+    return NextResponse.json({ sops: parsed.sops || "", urgentUpdate: parsed.urgentUpdate || "" });
+  } catch {
     return NextResponse.json({ error: "Failed to read SOPs" }, { status: 500 });
   }
 }
@@ -40,9 +53,19 @@ export async function POST(req: Request) {
     if (token !== "authenticated") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    const { sops } = await req.json();
+    const { sops, urgentUpdate } = await req.json();
     await ensureDataPath();
-    await fs.writeFile(dataFilePath, JSON.stringify({ sops }), "utf8");
+    // Read existing data to merge fields
+    let existing: any = { sops: "", urgentUpdate: "" };
+    try {
+      const raw = await fs.readFile(dataFilePath, "utf8");
+      existing = JSON.parse(raw);
+    } catch {}
+    const updated = {
+      sops: sops !== undefined ? sops : existing.sops || "",
+      urgentUpdate: urgentUpdate !== undefined ? urgentUpdate : existing.urgentUpdate || "",
+    };
+    await fs.writeFile(dataFilePath, JSON.stringify(updated), "utf8");
     return NextResponse.json({ success: true });
   } catch (error) {
     return NextResponse.json({ error: "Failed to write SOPs" }, { status: 500 });
