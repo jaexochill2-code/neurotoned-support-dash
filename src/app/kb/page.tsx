@@ -339,12 +339,12 @@ export default function KnowledgeBasePage() {
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-bold uppercase tracking-widest text-foreground">Urgent Broadcast</span>
+                    <span className="text-[11px] font-bold uppercase tracking-widest text-foreground">Team Alert</span>
                     {urgentUpdate && (
                       <span className="text-[9px] font-bold uppercase tracking-widest bg-amber-500/15 text-amber-500 px-2 py-0.5 rounded-full">LIVE</span>
                     )}
                   </div>
-                  <p className="text-[12px] text-muted-foreground mt-0.5">Push a critical alert to the whole team.</p>
+                  <p className="text-[12px] text-muted-foreground mt-0.5">Heads up for the whole team — goes live instantly.</p>
                 </div>
               </div>
               
@@ -353,7 +353,7 @@ export default function KnowledgeBasePage() {
                   type="text"
                   value={urgentDraft}
                   onChange={e => setUrgentDraft(e.target.value)}
-                  placeholder="e.g. Stripe is down — pause all refunds until further notice"
+                  placeholder="e.g. Heads up — Stripe is down. Hold all refunds for now."
                   className="flex-1 bg-background border border-border rounded-lg px-4 py-2.5 text-[13px] font-medium placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-amber-500/30 text-[#F4F8F5]"
                 />
                 <Button
@@ -366,7 +366,7 @@ export default function KnowledgeBasePage() {
                       : "bg-[#0D1E14] border border-[#152218] text-[#547A63]"
                   )}
                 >
-                  {urgentDraft ? "Broadcast" : "Clear"}
+                  {urgentDraft ? "Send It" : "Clear"}
                 </Button>
               </div>
             </div>
