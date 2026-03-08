@@ -111,11 +111,6 @@ export default function KnowledgeBasePage() {
   const [isSavingKb, setIsSavingKb]   = useState(false)
   const [activeId, setActiveId]       = useState<string | null>(null)
 
-  const [sops, setSops]           = useState("")
-  const [isLoadingSops, setIsLoadingSops] = useState(true)
-  const [isSavingSops, setIsSavingSops]   = useState(false)
-  const [rulesOpen, setRulesOpen]         = useState(false)
-
   // Urgent Updates
   const [urgentUpdate, setUrgentUpdate]   = useState("")
   const [urgentDraft, setUrgentDraft]     = useState("")
@@ -165,18 +160,9 @@ export default function KnowledgeBasePage() {
       // Load urgent update publicly (no auth needed)
       try {
         const pubRes = await fetch("/api/sops?public=1");
-        if (pubRes.ok) { const d = await pubRes.json(); setUrgentUpdate(d.urgentUpdate || "") }
+        if (pubRes.ok) { const d = await pubRes.json(); setUrgentUpdate(d.urgentUpdate || ""); setUrgentDraft(d.urgentUpdate || ""); }
       } catch {}
       try { const r = await fetch("/api/auth"); if (r.ok) setIsAuthenticated(true) } catch {} finally { setIsCheckingAuth(false) }
-      try {
-        const r = await fetch("/api/sops");
-        if (r.ok) {
-          const d = await r.json();
-          setSops(d.sops || "");
-          setUrgentDraft(d.urgentUpdate || "");
-          setUrgentUpdate(d.urgentUpdate || "");
-        }
-      } catch {} finally { setIsLoadingSops(false) }
       await loadFiles()
     }
     init()
@@ -260,15 +246,6 @@ export default function KnowledgeBasePage() {
     setMobileView("reader")
   }
 
-  const handleSaveSops = async () => {
-    setIsSavingSops(true)
-    try {
-      await fetch("/api/sops", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sops }) })
-      toast.success("Global rules saved.")
-    } catch { toast.error("Failed.") }
-    finally { setIsSavingSops(false) }
-  }
-
   const handleSaveUrgent = async () => {
     setIsSavingUrgent(true)
     try {
@@ -350,71 +327,49 @@ export default function KnowledgeBasePage() {
         </div>
       </header>
 
-      {/* GLOBAL RULES (Admin) */}
+      {/* ADMIN CONTROL BAR: URGENT BROADCAST */}
       <AnimatePresence>
         {isAuthenticated && (
           <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }}
-            className="bg-card border border-border rounded-2xl overflow-hidden relative z-10">
-            <button onClick={() => setRulesOpen(o => !o)} className="w-full flex items-center justify-between px-6 py-4 hover:bg-[#0D1E14] transition-colors">
-              <div className="flex items-center gap-3">
-                <Layers className="w-4 h-4 text-primary" />
-                <span className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Global Fallback Rules</span>
-              </div>
-              <motion.div animate={{ rotate: rulesOpen ? 180 : 0 }} transition={{ type: "spring", stiffness: 300, damping: 20 }}>
-                <ChevronDown className="w-4 h-4 text-muted-foreground" />
-              </motion.div>
-            </button>
-            <AnimatePresence>
-              {rulesOpen && (
-                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ type: "spring", stiffness: 200, damping: 20 }} className="overflow-hidden">
-                  <div className="px-6 pb-5 space-y-5">
-                    {/* Urgent Broadcast Input */}
-                    <div className="bg-amber-500/5 border border-amber-500/15 rounded-xl p-4">
-                      <div className="flex items-center gap-2 mb-3">
-                        <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
-                        <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-amber-500/80">Urgent Broadcast</span>
-                        {urgentUpdate && (
-                          <span className="text-[9px] font-bold uppercase tracking-widest bg-amber-500/15 text-amber-500 px-2 py-0.5 rounded-full ml-auto">LIVE</span>
-                        )}
-                      </div>
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={urgentDraft}
-                          onChange={e => setUrgentDraft(e.target.value)}
-                          placeholder="e.g. Stripe is down — pause all refunds until further notice"
-                          className="flex-1 bg-background border border-amber-500/20 rounded-lg px-3 py-2 text-[13px] font-medium placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-amber-500/30 text-[#F4F8F5]"
-                        />
-                        <Button
-                          onClick={handleSaveUrgent}
-                          disabled={isSavingUrgent}
-                          size="sm"
-                          className={cn(
-                            "gap-1.5 rounded-lg h-9 px-4 text-[12px] font-bold transition-all",
-                            urgentDraft
-                              ? "bg-amber-500 hover:bg-amber-600 text-black"
-                              : "bg-[#0D1E14] border border-[#152218] text-[#547A63]"
-                          )}
-                        >
-                          {urgentDraft ? "Broadcast" : "Clear"}
-                        </Button>
-                      </div>
-                      {urgentUpdate && (
-                        <p className="text-[11px] text-amber-500/50 mt-2 font-mono">Currently live: "{urgentUpdate}"</p>
-                      )}
-                    </div>
-
-                    {/* SOPs Textarea */}
-                    <Textarea value={sops} onChange={e => setSops(e.target.value)} className="min-h-[160px] resize-none bg-background border border-border rounded-xl p-5 text-[13px] font-mono mb-3 focus-visible:ring-1 focus-visible:ring-primary/50 text-[#F4F8F5]" />
-                    <div className="flex justify-end">
-                      <Button onClick={handleSaveSops} disabled={isSavingSops} size="sm" className="gap-2 rounded-lg h-9">
-                        <Save className="h-4 w-4" /> Save Rules
-                      </Button>
-                    </div>
+            className="bg-card border border-border rounded-2xl p-5 relative z-10">
+            <div className="flex flex-col md:flex-row md:items-center gap-4">
+              <div className="flex items-center gap-3 shrink-0">
+                <div className="bg-amber-500/10 p-2 rounded-lg">
+                  <AlertTriangle className="w-4 h-4 text-amber-500" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-bold uppercase tracking-widest text-foreground">Urgent Broadcast</span>
+                    {urgentUpdate && (
+                      <span className="text-[9px] font-bold uppercase tracking-widest bg-amber-500/15 text-amber-500 px-2 py-0.5 rounded-full">LIVE</span>
+                    )}
                   </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+                  <p className="text-[12px] text-muted-foreground mt-0.5">Push a critical alert to the whole team.</p>
+                </div>
+              </div>
+              
+              <div className="flex-1 flex gap-2 w-full">
+                <input
+                  type="text"
+                  value={urgentDraft}
+                  onChange={e => setUrgentDraft(e.target.value)}
+                  placeholder="e.g. Stripe is down — pause all refunds until further notice"
+                  className="flex-1 bg-background border border-border rounded-lg px-4 py-2.5 text-[13px] font-medium placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-amber-500/30 text-[#F4F8F5]"
+                />
+                <Button
+                  onClick={handleSaveUrgent}
+                  disabled={isSavingUrgent}
+                  className={cn(
+                    "gap-1.5 rounded-lg h-auto px-5 text-[12px] font-bold transition-all",
+                    urgentDraft
+                      ? "bg-amber-500 hover:bg-amber-600 text-black shadow-[0_0_15px_rgba(245,158,11,0.2)]"
+                      : "bg-[#0D1E14] border border-[#152218] text-[#547A63]"
+                  )}
+                >
+                  {urgentDraft ? "Broadcast" : "Clear"}
+                </Button>
+              </div>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
