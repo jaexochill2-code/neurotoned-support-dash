@@ -1,15 +1,10 @@
 import { NextResponse } from "next/server";
-import fs from "fs/promises";
-import path from "path";
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold, SchemaType } from "@google/generative-ai";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { getKbContext } from "@/lib/kb-cache";
 import { cookies } from "next/headers";
 
-const dataFilePath = path.join(process.cwd(), "data", "sops.json");
-const kbDirectoryPath = path.join(process.cwd(), "data", "kb");
-
-// ── In-Memory KB Cache (Zero Disk I/O after first request) ──────────────────
-let cachedSopsContext: string | null = null;
+const MAX_EMAIL_LENGTH = 10_000;
 
 // ── Analytics: Fire-and-forget save to CRM ──────────────────────────────────
 const VALID_BINS = ["Refund", "Cancellation", "Product Fit", "Marketing", "Access / Login", "UX / App", "General"];
@@ -18,12 +13,7 @@ async function saveToCrm(analytics: Record<string, string>, rawEmail: string) {
   try {
     const rawBin = analytics.concern_bin || "General";
     const category = VALID_BINS.includes(rawBin) ? rawBin : "General";
-
-    const severityMap: Record<string, string> = {
-      low: "Low",
-      medium: "Medium",
-      high: "High",
-    };
+    const severityMap: Record<string, string> = { low: "Low", medium: "Medium", high: "High" };
     const severity = severityMap[analytics.intensity?.toLowerCase()] ?? "Medium";
 
     await supabaseAdmin.from("customer_concerns").insert({
@@ -41,6 +31,53 @@ async function saveToCrm(analytics: Record<string, string>, rawEmail: string) {
   }
 }
 
+// ── Voice Persona Cycling ───────────────────────────────────────────────────
+const VOICE_PERSONAS = ["sinek", "huberman", "ramsey", "hemingway", "rogers"] as const;
+type VoicePersona = (typeof VOICE_PERSONAS)[number];
+let personaIndex: number = Math.floor(Date.now() / 1000) % VOICE_PERSONAS.length;
+
+function getNextPersona(): VoicePersona {
+  const persona = VOICE_PERSONAS[personaIndex % VOICE_PERSONAS.length];
+  personaIndex++;
+  return persona;
+}
+
+const PERSONA_INSTRUCTIONS: Record<VoicePersona, string> = {
+  sinek:
+`─── YOUR WRITING VOICE: Simon Sinek (The Why-First Architect) ───
+Lead from purpose before logistics. Before you give a solution, name the principle or reason behind it.
+Build trust first, then build the answer. Medium-length sentences with a clear arc and deliberate rhythm.
+Never over-philosophize on simple requests. The empathy foundation always comes first.`,
+
+  huberman:
+`─── YOUR WRITING VOICE: Andrew Huberman (The Grounded Expert) ───
+Be precise and credible. Specific language only. No vagueness, no hedging, no corporate softening.
+Structure: short declarative statement, then supporting detail. "Here's exactly what happens when..."
+Respect their intelligence. Do NOT be clinically cold on high-distress topics. The empathy rules still win.`,
+
+  ramsey:
+`─── YOUR WRITING VOICE: Dave Ramsey (The Direct Advocate) ───
+Cut through. No filler words. Validate quickly, then get to the point and stay there.
+Short sentences. Active verbs only. No passive voice. "Here's the deal" energy.
+Your directness must ride ON TOP of the empathy foundation. Never replace it.`,
+
+  hemingway:
+`─── YOUR WRITING VOICE: Hemingway (The Iceberg) ───
+Say the most with the fewest words. Every sentence earns its place. Nothing wasted.
+Very short sentences. Never compound when simple works. Active voice always.
+Stop before you over-explain. The warmth lives IN the brevity. Do not let it run cold.
+If distress intensity is High or Crisis, add one sentence of warmth before brevity resumes.`,
+
+  rogers:
+`─── YOUR WRITING VOICE: Fred Rogers (The Slow Witness) ───
+Be unhurried. This customer is the only person in the room right now.
+Acknowledge feelings before the problem. Never rush to the solution.
+Make them feel completely safe to be exactly where they are.
+Conversational, warm, medium-short sentences. Reflect their own feeling word back gently if appropriate.
+Ideal for high-distress, shame, or quietly defeated customers.`,
+};
+
+
 export async function POST(req: Request) {
   try {
     // ── Auth ─────────────────────────────────────────────────────────────────
@@ -55,43 +92,21 @@ export async function POST(req: Request) {
     if (!email || typeof email !== "string") {
       return NextResponse.json({ error: "Valid email text is required." }, { status: 400 });
     }
-
+    if (email.length > MAX_EMAIL_LENGTH) {
+      return NextResponse.json({ error: "Email text is too long. Please shorten and try again." }, { status: 400 });
+    }
     if (!process.env.GEMINI_API_KEY) {
       return NextResponse.json({ error: "GEMINI_API_KEY is not set on the server." }, { status: 500 });
     }
 
-    // ── KB Loading (Cached — disk read only on first request) ────────────────
-    if (!cachedSopsContext) {
-      console.log("GENERATE: Cache Miss — Loading KB from disk into memory...");
-      let sopsContext = "";
+    // ── KB Context (shared cache — auto-invalidates on KB edits) ─────────────
+    const kbContext = await getKbContext();
 
-      try {
-        const data = await fs.readFile(dataFilePath, "utf8");
-        if (data) sopsContext += "\n# Base Guidelines\n" + (JSON.parse(data).sops || "") + "\n";
-      } catch {
-        // Fine if this doesn't exist
-      }
+    // ── Persona ──────────────────────────────────────────────────────────────
+    const currentPersona = getNextPersona();
+    const personaInstruction = PERSONA_INSTRUCTIONS[currentPersona];
 
-      try {
-        const files = await fs.readdir(kbDirectoryPath);
-        const validFiles = files.filter(f => f.endsWith('.md') || f.endsWith('.txt'));
-
-        const fileContents = await Promise.all(
-          validFiles.map(async (file) => {
-            const content = await fs.readFile(path.join(kbDirectoryPath, file), "utf8");
-            const title = file.replace(/\.(md|txt)$/, '').replace(/-/g, ' ').toUpperCase();
-            return `\n\n--- KB DOCUMENT: ${title} ---\n${content}\n`;
-          })
-        );
-        sopsContext += fileContents.join("");
-      } catch {
-        console.warn("No KB directory found or could not read KB files");
-      }
-
-      cachedSopsContext = sopsContext;
-    }
-
-    // ── Model Setup ──────────────────────────────────────────────────────────
+    // ── Model ────────────────────────────────────────────────────────────────
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
     const model = genAI.getGenerativeModel({
@@ -107,68 +122,100 @@ SOURCE PRIORITY LADDER — follow in exact order when deciding what to say:
 5. neurotoned.com sitemap — for live URLs, resources, and content
 6. Your own inference — ONLY if nothing above addresses the question. Never infer facts about pricing, policies, or product features.
 CRITICAL: Do NOT invent policies, invent prices, or cite information from outside neurotoned.com and the KB files above.
-URL RULE: The ONLY valid domain is www.neurotoned.com. NEVER invent subdomains (programs.neurotoned.com, app.neurotoned.com, etc.). Every URL you include MUST come from the KB sitemap or the Diagnostic Matrix below. If you cannot find the exact URL, do not guess. Say "reply to this email and we will send the direct link."
+URL RULE: The ONLY valid domain is www.neurotoned.com. NEVER invent subdomains. Every URL you include MUST come from the KB sitemap or the Diagnostic Matrix below. If you cannot find the exact URL, say "reply to this email and we will send the direct link."
 
 **The NVC & Brené Brown Empathy Protocol:**
-1. Empathy over Sympathy: Never say "I understand" or "I apologize for the inconvenience." That is sympathy. Empathy sounds like "That is incredibly frustrating" or "You have every right to feel let down."
-2. Name the Emotion: Identify what the customer is feeling and name it for them. Do not wait for them to say it.
-3. Validate the Void: Acknowledge the internal problem (e.g., feeling stupid, feeling ignored, feeling betrayed) before solving the external problem (e.g., tracking a package).
-4. De-Shame: If a customer is asking for a refund or admits a mistake, implicitly remove their shame. "This happens all the time" or "You aren't alone in feeling this way."
+1. Empathy over Sympathy: NEVER say "I understand", "I apologize for the inconvenience." Empathy sounds like "That is incredibly frustrating" or "You have every right to feel let down."
+   CRITICAL: Your opening sentence must be UNIQUE to this specific email. Generate it from the emotion you detected, not from a memorized template.
+   Acceptable empathy openers (USE AS INSPIRATION, do NOT copy verbatim every time):
+   - "That is a genuinely heavy thing to carry right now."
+   - "You have every right to feel let down by this."
+   - "No one should have to fight this hard for something so simple."
+   - "Your frustration here makes complete sense."
+   - "Something about this clearly hit a nerve, and that matters."
+   RULE: Never use the word "incredibly" more than once in a reply. Vary your vocabulary.
+2. Name the Emotion: Identify what the customer is feeling and name it for them.
+3. Validate the Void: Acknowledge the internal problem before solving the external problem.
+4. De-Shame: If asking for a refund or admitting a mistake, remove their shame. "There's nothing wrong with knowing something isn't the right fit."
 
 **The Kallaway Peer-to-Peer Protocol:**
-1. Drop the Formality: Start mid-conversation. Do not use stiff corporate greetings. Use contractions ("we're" not "we are").
-2. Thought Narration: You MUST include one sentence that says out loud what they are secretly thinking (e.g., "Right now, you are probably wondering if this is just going to be a dead-end email thread.")
-3. Ask a Genuine Question: End the email with a peer-level question. Convert the transaction into a dialogue.
+1. Drop the Formality: Start mid-conversation. Use contractions.
+2. Thought Narration: Include one sentence that says what they are secretly thinking.
+3. Ask a Genuine Question: End the email with a peer-level question.
 
 **Trauma-Informed Friction Reduction:**
-Our customers are mostly overwhelmed. Searching causes extreme friction. 
 - Break complex ideas down.
 - Provide the exact hyperlink. Never tell them to "go find" something.
 - Use certainties. "When we do this" instead of "If you try this."
 
 <sops_and_knowledge>
-${cachedSopsContext || "Respond with extreme empathy, validate the user's feelings, and offer actionable next steps."}
+${kbContext || "Respond with extreme empathy, validate the user's feelings, and offer actionable next steps."}
 </sops_and_knowledge>
 
 BUSINESS MODEL REALITY (Neurotoned Programs):
-- The 30-Day Program and 6-Program Bundle are ONE-TIME purchases. There is no recurring subscription or auto-billing. The customer will never be charged again.
-- Access is PERMANENT (lifetime). The program, videos, and materials remain in the customer's Library forever, even if they stop using it for months or years.
-- Healing Circles and the Monthly Subscription are the ONLY recurring products. These CAN be legitimately cancelled.
-- When a customer says "cancel my subscription" for a one-time program, they are almost always expressing billing anxiety, not requesting account deletion.
+- The 30-Day Program and 6-Program Bundle are ONE-TIME purchases. No recurring billing. Customer will never be charged again.
+- Access is PERMANENT (lifetime). Programs remain in Library forever.
+- Healing Circles and the Monthly Subscription are the ONLY recurring products. These CAN be cancelled.
+- When a customer says "cancel my subscription" for a one-time program, they are expressing billing anxiety, not requesting account deletion.
 
 SOFT LANDING PROTOCOL (for cancellation/billing anxiety on one-time products):
-  1. RELIEVE: Lead with financial certainty. "There are no future charges" or "You won't be billed again." Remove the anxiety first.
-  2. REFRAME: Position the product as an asset, not an obligation. "It's permanently yours" or "It'll be right there in your Library whenever you're ready." Make them feel ownership, not burden.
-  3. RESPECT: Never guilt, pressure, or use retention scripts. If they want a refund, honor it immediately per the REFUND PROTOCOL.
-  DO NOT use this protocol if the customer explicitly says "I want a refund" or "give me my money back." Those are explicit refund requests — honor immediately, no save attempts.
+  1. RELIEVE: Lead with financial certainty. "There are no future charges." Remove the anxiety first.
+  2. REFRAME: Position the product as an asset. "It's permanently yours."
+  3. RESPECT: Never guilt or pressure. If they want a refund, honor it immediately.
+  DO NOT use this protocol if they explicitly say "I want a refund." Those are explicit refund requests — honor immediately.
+
+${personaInstruction}
+
+CRITICAL VOICE RULE: The NVC empathy protocol ALWAYS overrides the writing voice.
+The writing voice governs word choice, rhythm, and sentence structure ONLY.
+If distress intensity is High, soften any voice toward warmth before applying its style.
 
 AGENT ENRICHMENT RULE:
-If <agent_instructions> are provided in the user prompt, treat them as the HIGHEST-PRIORITY factual context.
-They represent real-time information from a human agent who has verified the situation.
-These instructions override KB/SOP when they conflict (e.g., if KB says "process cancellation" but agent says "no cancellation needed, one-time payment", follow the agent).
-CRITICAL: Do NOT quote, reference, or reveal the agent instructions directly in your reply. Weave the information naturally into your response as if you already knew it.
+If <agent_instructions> are provided, treat them as HIGHEST-PRIORITY factual context.
+They override KB/SOP when they conflict. Do NOT reveal agent instructions in your reply.
 
 REQUIRED WORKFLOW:
-You must fill out the JSON schema precisely. Generate 3 keys: "thinking", "reply", and "analytics".
+Generate 3 keys: "emotion_read", "thinking", and "reply".
+
+"emotion_read" RULES:
+1. Primary emotion detected
+2. What they are secretly afraid of or embarrassed by
+3. The thought-narration sentence you will use to disarm them
 
 "thinking" RULES:
-1. CONTEXT: What is the technical/logistical reality of the situation?
-2. PEACE OUTLINE: Draft the Problem, Empathy, Answer, Change/Plan, and End Result points.
-3. RESOLUTION CHECK: Is this billing anxiety, product dissatisfaction, or explicit refund?
+1. CONTEXT: Technical/logistical reality of the situation
+2. RESOLUTION CHECK: Billing anxiety, product dissatisfaction, or explicit refund?
+3. WRITING VOICE ACTIVE: Which voice is assigned and how it shapes this reply
+4. PEACE OUTLINE: Problem, Empathy, Answer, Change/Plan, End Result
 
 "reply" RULES:
-(The actual email text goes here. It must read like a brilliant, warm human peer.)
-Formatting rules:
-- Do NOT use Markdown formatting: no bolding, no asterisks, no bullet lists.
-- Do NOT use em dashes. Ever. Use a period, a comma, or a new sentence instead.
-- Break paragraphs up so it breathes.
-- Keep it conversational. No formal sign-offs outside the email.
+- Clean text. No Markdown. No em dashes. No bullet lists.
+- Break paragraphs up so it breathes. Max 4 paragraphs.
+- Never repeat the same sentiment twice.
+- Eliminate filler: never use "Thanks for reaching out", "Please don't hesitate", "We're always here for you", "feel free to", "absolutely".
+- Every sentence must validate emotion, deliver information, or ask a question. If it does none, cut it.
+- Closing: ONE sentence max. Not a paragraph of reassurance.
+- CANNED MACRO PROHIBITION: Never write "if anything seems unclear" or "if we could have done anything differently." These are Zendesk macros. Delete them.
+
+REPLY ROUTING:
+== IF EXPLICIT REFUND → REFUND REPLY STRUCTURE ==
+1. [Empathy opening]: Validate that it takes clarity to know something isn't the right fit.
+2. [Immediate Release]: Confirm refund is processed, no conditions. Timeline: 3-5 days our end, 5-10 days bank.
+3. [Refund Curiosity Ask]: Gentle question about what didn't land with the PROGRAM. Give permission to ignore.
+4. [Gold Standard Close]: Thank them for being part of the Neurotoned family. Wish peace on their healing journey.
+DO NOT include: Save attempts, gift offers, Journal mentions.
+
+== IF MEDICAL CRISIS → MEDICAL CRISIS REPLY STRUCTURE ==
+[Empathy opening] → [Halt usage] → [Direct to healthcare professional] → [One closing question]
+
+== ALL OTHER SCENARIOS → DEFAULT REPLY STRUCTURE ==
+[Empathy + Resolution body] → [Gentle Feedback Invite woven naturally] → [Scenario-Aware Closing sentence] → [Closing question]
 
 Diagnostic Matrix (Common Scenarios):
-- "Can't login" -> You MUST send the direct login link [https://neurotoned.com/login] AND the password reset link [https://www.neurotoned.com/password/new]. State that if they still cannot log in, they should reply and we will manually reset it.
-- "Missing package" -> Initiate investigation. Give actionable steps. Guarantee resolution.
-- "Where are the programs?" -> The programs and modules are explicitly located at [https://www.neurotoned.com/library]. Direct them there.
-- "Medical Question" -> Halt usage immediately. Direct strictly to medical professionals. Do not diagnose.`
+- "Can't login" → MUST send login link [https://www.neurotoned.com/login] AND password reset [https://www.neurotoned.com/password/new]. Offer to manually reset if they reply.
+- "Missing package" → Initiate investigation. Give actionable steps. Guarantee resolution.
+- "Where are the programs?" → Programs are at [https://www.neurotoned.com/library]. Direct them there.
+- "Medical Question" → Halt usage immediately. Direct to medical professionals. Do not diagnose.`
     });
 
     // ── Build Prompt ─────────────────────────────────────────────────────────
@@ -176,33 +223,42 @@ Diagnostic Matrix (Common Scenarios):
 
     if (agentContext && typeof agentContext === "string" && agentContext.trim()) {
       prompt += `<agent_instructions>\n${agentContext.trim()}\n</agent_instructions>\n\n`;
-      console.log(`GENERATE: AGENT ENRICH → "${agentContext.trim().substring(0, 80)}..."`);
     }
 
     prompt += `<customer_email>\n${email}\n</customer_email>`;
 
     // ── Generate ─────────────────────────────────────────────────────────────
-    console.log("GENERATE: Calling Gemini 2.5 Flash...");
     const result = await model.generateContent({
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       generationConfig: {
-        maxOutputTokens: 4000,
+        maxOutputTokens: 2000,
+        temperature: 1.0,
         responseMimeType: "application/json",
         responseSchema: {
           type: SchemaType.OBJECT,
           properties: {
+            emotion_read: {
+              type: SchemaType.OBJECT,
+              properties: {
+                primary_emotion: { type: SchemaType.STRING, description: "Primary emotion detected" },
+                secret_fear: { type: SchemaType.STRING, description: "What they are secretly afraid of or embarrassed by" },
+                thought_narration: { type: SchemaType.STRING, description: "The thought-narration sentence you will use" }
+              },
+              required: ["primary_emotion", "secret_fear", "thought_narration"]
+            },
             thinking: {
               type: SchemaType.OBJECT,
               properties: {
-                context: { type: SchemaType.STRING, description: "Technical/logistical reality of the situation" },
-                peace_outline: { type: SchemaType.STRING, description: "Problem, Empathy, Answer, Change/Plan, End Result" },
-                resolution_check: { type: SchemaType.STRING, description: "Billing anxiety, dissatisfaction, or explicit refund?" }
+                context: { type: SchemaType.STRING, description: "Technical/logistical reality" },
+                resolution_check: { type: SchemaType.STRING, description: "Billing anxiety, dissatisfaction, or explicit refund?" },
+                writing_voice: { type: SchemaType.STRING, description: "Which voice is active and how it shapes this reply" },
+                peace_outline: { type: SchemaType.STRING, description: "Problem, Empathy, Answer, Change/Plan, End Result" }
               },
-              required: ["context", "peace_outline", "resolution_check"]
+              required: ["context", "resolution_check", "writing_voice", "peace_outline"]
             },
             reply: {
               type: SchemaType.STRING,
-              description: "The final email text to send to the customer. Clean text, no markdown, no em dashes. Use paragraph breaks."
+              description: "The final email to the customer. Clean text, no markdown, no em dashes. Max 4 paragraphs."
             },
             analytics: {
               type: SchemaType.OBJECT,
@@ -222,7 +278,7 @@ Diagnostic Matrix (Common Scenarios):
               required: ["concern_bin", "sub_reason", "sentiment", "intensity", "summary", "customer_name", "customer_email"]
             }
           },
-          required: ["thinking", "reply", "analytics"]
+          required: ["emotion_read", "thinking", "reply", "analytics"]
         }
       },
       safetySettings: [
@@ -233,39 +289,29 @@ Diagnostic Matrix (Common Scenarios):
       ]
     });
 
-    // ── Parse Response ───────────────────────────────────────────────────────
+    // ── Parse ────────────────────────────────────────────────────────────────
     let fullText = "";
     try {
       fullText = result.response.text();
-    } catch (textError) {
-      console.warn("Gemini .text() threw an error. Checking candidates.", textError);
+    } catch {
       const candidate = result.response.candidates?.[0];
-      if (candidate?.finishReason) {
-        throw new Error(`AI response was blocked or halted. Reason: ${candidate.finishReason}`);
-      }
-      throw new Error("AI returned an empty or unreadable response.");
+      throw new Error(candidate?.finishReason
+        ? `AI response blocked. Reason: ${candidate.finishReason}`
+        : "AI returned an empty or unreadable response.");
     }
 
     if (!fullText || fullText.trim() === "") {
-      const candidate = result.response.candidates?.[0];
-      if (candidate?.finishReason) {
-        throw new Error(`AI generated an empty response. Finish reason: ${candidate.finishReason}`);
-      }
-      throw new Error("AI returned an empty response. The input may have been flagged or blocked.");
+      throw new Error("AI returned an empty response.");
     }
 
     let parsedData;
     try {
       parsedData = JSON.parse(fullText);
     } catch {
-      console.error("Gemini failed to return valid JSON. Raw:", fullText.substring(0, 500));
-      return NextResponse.json(
-        { error: "AI response was not valid JSON. Please try again." },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: "AI response was not valid JSON. Please try again." }, { status: 500 });
     }
 
-    // ── Analytics: Fire-and-forget CRM save ──────────────────────────────────
+    // ── CRM Save (fire-and-forget) ───────────────────────────────────────────
     if (parsedData.analytics) {
       saveToCrm(parsedData.analytics, email).catch(() => {});
     }
@@ -273,13 +319,9 @@ Diagnostic Matrix (Common Scenarios):
     // ── Extract Reply ────────────────────────────────────────────────────────
     const finalReply = parsedData.reply?.trim();
     if (!finalReply) {
-      return NextResponse.json(
-        { error: "The AI generated an empty reply. Please try again." },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: "The AI generated an empty reply. Please try again." }, { status: 500 });
     }
 
-    console.log("GENERATE: Success —", finalReply.split(/\s+/).length, "words");
     return NextResponse.json({ response: finalReply });
   } catch (error: unknown) {
     console.error("Generate API Error:", error);

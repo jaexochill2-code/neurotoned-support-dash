@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import fs from "fs/promises";
 import path from "path";
+import { invalidateKbCache } from "@/lib/kb-cache";
 
 const kbDirectory = path.join(process.cwd(), "data", "kb");
 
@@ -104,6 +105,7 @@ export async function POST(req: Request) {
     };
 
     await fs.writeFile(filePath, buildFrontmatter(meta) + content, "utf-8");
+    invalidateKbCache();
     return NextResponse.json({ success: true, id: filename });
   } catch (error) {
     console.error("Failed to write KB file", error);
@@ -133,6 +135,7 @@ export async function DELETE(req: Request) {
     }
 
     await fs.unlink(path.join(kbDirectory, id));
+    invalidateKbCache();
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Failed to delete KB file", error);
