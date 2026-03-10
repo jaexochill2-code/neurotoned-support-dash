@@ -251,6 +251,7 @@ export default function KnowledgeBasePage() {
     try {
       await fetch("/api/sops", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ urgentUpdate: urgentDraft }) })
       setUrgentUpdate(urgentDraft)
+      window.dispatchEvent(new Event("refresh-announcement"))
       toast.success(urgentDraft ? "Urgent broadcast is now LIVE." : "Broadcast cleared.")
     } catch { toast.error("Failed to save.") }
     finally { setIsSavingUrgent(false) }
@@ -262,6 +263,7 @@ export default function KnowledgeBasePage() {
       await fetch("/api/sops", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ urgentUpdate: "" }) })
       setUrgentUpdate("")
       setUrgentDraft("")
+      window.dispatchEvent(new Event("refresh-announcement"))
       toast.success("Broadcast cleared.")
     } catch { toast.error("Failed.") }
     finally { setIsSavingUrgent(false) }
@@ -272,39 +274,7 @@ export default function KnowledgeBasePage() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="flex flex-col h-full space-y-6 animate-in fade-in duration-500 max-w-6xl mx-auto w-full pb-16 relative">
-
-      {/* URGENT UPDATE BANNER */}
-      <AnimatePresence>
-        {urgentUpdate && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ type: "spring", stiffness: 300, damping: 25 }}
-            className="overflow-hidden"
-          >
-            <div className="flex items-center gap-3 px-5 py-3.5 bg-amber-500/10 border border-amber-500/20 rounded-xl mt-6 relative">
-              <div className="shrink-0">
-                <AlertTriangle className="w-5 h-5 text-amber-500 animate-pulse" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-amber-500/70 block mb-0.5">Urgent Update</span>
-                <p className="text-[13px] font-semibold text-amber-400 leading-snug">{urgentUpdate}</p>
-              </div>
-              {isAuthenticated && (
-                <button
-                  onClick={handleClearUrgent}
-                  className="shrink-0 p-1.5 rounded-lg hover:bg-amber-500/10 text-amber-500/50 hover:text-amber-500 transition-colors"
-                  title="Clear broadcast"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              )}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+    <div className="flex flex-col h-full space-y-6 animate-in fade-in duration-500 max-w-6xl mx-auto w-full relative">
 
       {/* HEADER */}
       <header className={cn("pt-6 md:pt-10 pb-8 relative z-10 flex flex-col md:flex-row md:items-end justify-between gap-4", mobileView === "reader" && "hidden md:flex")}>
@@ -375,7 +345,7 @@ export default function KnowledgeBasePage() {
       </AnimatePresence>
 
       {/* TWO-PANE LAYOUT */}
-      <div className="flex flex-1 min-h-[600px] bg-card border border-border rounded-xl overflow-hidden shadow-sm relative z-10">
+      <div className="flex-1 min-h-0 flex bg-card border border-border rounded-xl overflow-hidden shadow-sm relative z-10">
         
         {/* SIDEBAR */}
         <div className={cn("w-full md:w-[300px] shrink-0 border-r border-border flex flex-col bg-muted/30 z-20 transition-all", mobileView === "reader" && "hidden md:flex")}>
@@ -571,7 +541,7 @@ export default function KnowledgeBasePage() {
               )}
 
               {/* Content Area */}
-              <div className="flex-1 overflow-y-auto px-8 py-8 pb-32">
+              <div className="flex-1 overflow-y-auto px-8 py-8 pb-6">
                 {isEditing ? (
                   <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full flex flex-col">
                     <Textarea ref={textareaRef} value={editContent} onChange={e => setEditContent(e.target.value)}

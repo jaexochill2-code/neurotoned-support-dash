@@ -89,6 +89,8 @@
   }
   body {
     @apply bg-background text-foreground;
+    overflow-x: hidden;
+    touch-action: manipulation;
   }
   
   /* Prevent iOS Safari auto-zoom on form inputs by forcing 16px min size on mobile */

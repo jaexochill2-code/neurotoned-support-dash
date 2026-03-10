@@ -58,7 +58,20 @@ export default function WorkspacePage() {
 
   const handleCopy = () => {
     if (!response) return
-    navigator.clipboard.writeText(response)
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(response)
+    } else {
+      const textArea = document.createElement("textarea")
+      textArea.value = response
+      document.body.appendChild(textArea)
+      textArea.select()
+      try {
+        document.execCommand('copy')
+      } catch (err) {
+        console.error('Fallback copy failed', err)
+      }
+      document.body.removeChild(textArea)
+    }
     setCopied(true)
     toast.success("Copied to clipboard!", {
       icon: <CheckCircle2 className="h-4 w-4 text-emerald-500" />,
@@ -67,7 +80,7 @@ export default function WorkspacePage() {
   }
 
   return (
-    <div className="flex flex-col h-full animate-in fade-in duration-500 max-w-7xl mx-auto w-full relative z-10 pb-4">
+    <div className="flex flex-col h-full animate-in fade-in duration-500 max-w-7xl mx-auto w-full relative z-10">
       
       {/* Page Header */}
       <header className="pb-8 pt-6 md:pt-10 flex flex-col items-start justify-start relative z-10 shrink-0">
