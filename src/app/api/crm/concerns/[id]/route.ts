@@ -1,8 +1,15 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { cookies } from "next/headers";
 
 export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
+    const cookieStore = await cookies();
+    const token = cookieStore.get("neurotoned_admin_token")?.value;
+    if (token !== "authenticated") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { id } = await context.params;
     const { data, error } = await supabaseAdmin
       .from("customer_concerns")
@@ -21,6 +28,12 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
+    const cookieStore = await cookies();
+    const token = cookieStore.get("neurotoned_admin_token")?.value;
+    if (token !== "authenticated") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { id } = await context.params;
     const { status } = await request.json();
 

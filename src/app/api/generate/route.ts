@@ -6,6 +6,9 @@ import { cookies } from "next/headers";
 
 const MAX_EMAIL_LENGTH = 10_000;
 
+// ── Module-level Gemini client (reused across warm invocations) ──────────────
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
+
 // ── Analytics: Fire-and-forget save to CRM ──────────────────────────────────
 const VALID_BINS = ["Refund", "Cancellation", "Product Fit", "Marketing", "Access / Login", "UX / App", "General"];
 
@@ -110,7 +113,6 @@ export async function POST(req: Request) {
     const personaInstruction = PERSONA_INSTRUCTIONS[currentPersona];
 
     // ── Model ────────────────────────────────────────────────────────────────
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
     const model = genAI.getGenerativeModel({
       model: "gemini-2.5-flash",
@@ -267,7 +269,8 @@ Diagnostic Matrix (Common Scenarios):
       contents: [{ role: "user" as const, parts: [{ text: prompt }] }],
       generationConfig: {
         maxOutputTokens: 2000,
-        temperature: 1.0,
+        temperature: 0.8,
+        thinkingConfig: { thinkingBudget: 4096 },
         responseMimeType: "application/json" as const,
         responseSchema: {
           type: SchemaType.OBJECT as SchemaType.OBJECT,

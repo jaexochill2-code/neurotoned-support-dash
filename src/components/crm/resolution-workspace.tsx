@@ -94,7 +94,16 @@ export function ResolutionWorkspaceClient({ initialConcern }: { initialConcern: 
 
   const handleCopy = () => {
     if (!response) return
-    navigator.clipboard.writeText(response)
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(response)
+    } else {
+      const textArea = document.createElement("textarea")
+      textArea.value = response
+      document.body.appendChild(textArea)
+      textArea.select()
+      try { document.execCommand('copy') } catch (err) { console.error('Fallback copy failed', err) }
+      document.body.removeChild(textArea)
+    }
     setCopied(true)
     toast.success("Response copied to clipboard!")
     setTimeout(() => setCopied(false), 2000)

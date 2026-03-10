@@ -43,3 +43,6 @@ export async function getKbContext(): Promise<string> {
 export function invalidateKbCache(): void {
   cachedContext = null;
 }
+
+// Pre-warm cache on module load (non-blocking)
+getKbContext().catch(() => {});

@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold, SchemaType } from "@google/generative-ai";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { getKbContext } from "@/lib/kb-cache";
+import { cookies } from "next/headers";
+
+// ── Module-level Gemini client (reused across warm invocations) ──────────────
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
 
 // ── Voice Persona Cycling ───────────────────────────────────────────────────
@@ -57,6 +61,13 @@ Never poetic, never flowery. The warmth lives in the rawness and the realness.`,
 
 export async function POST(req: Request) {
   try {
+    // ── Auth ─────────────────────────────────────────────────────────────────
+    const cookieStore = await cookies();
+    const token = cookieStore.get("neurotoned_admin_token")?.value;
+    if (token !== "authenticated") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { id, agentContext } = await req.json();
 
     if (!id || typeof id !== "string") {
@@ -87,8 +98,6 @@ export async function POST(req: Request) {
     const currentPersona = getNextPersona();
     const personaInstruction = PERSONA_INSTRUCTIONS[currentPersona];
 
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    
     const model = genAI.getGenerativeModel({
       model: "gemini-2.5-flash",
       systemInstruction: `You are an elite, deeply empathetic, trauma-informed customer support guide for Neurotoned.
@@ -297,8 +306,9 @@ Diagnostic Matrix (Common Scenarios):
     const genConfig = {
       contents: [{ role: "user" as const, parts: [{ text: prompt }] }],
       generationConfig: { 
-        maxOutputTokens: 2000,
-        temperature: 1.0,
+        maxOutputTokens: 1500,
+        temperature: 0.8,
+        thinkingConfig: { thinkingBudget: 4096 },
         responseMimeType: "application/json" as const,
         responseSchema: {
           type: SchemaType.OBJECT as SchemaType.OBJECT,

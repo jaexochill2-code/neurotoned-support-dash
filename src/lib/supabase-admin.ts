@@ -1,8 +1,15 @@
 import { createClient } from "@supabase/supabase-js";
 
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!supabaseUrl || !serviceRoleKey) {
+  console.error("FATAL: Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY env vars.");
+}
+
 // This admin client bypasses RLS using the service role key.
 // NEVER use this client-side or pass this client to the browser.
 export const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  supabaseUrl || "https://placeholder.supabase.co",
+  serviceRoleKey || "placeholder"
 );
