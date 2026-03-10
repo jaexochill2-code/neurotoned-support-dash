@@ -352,10 +352,16 @@ Diagnostic Matrix (Common Scenarios):
     }
 
     // ── Extract Reply ────────────────────────────────────────────────────────
-    const finalReply = parsedData.reply?.trim();
+    let finalReply = parsedData.reply?.trim();
     if (!finalReply) {
       return NextResponse.json({ error: "The AI generated an empty reply. Please try again." }, { status: 500 });
     }
+
+    // Rewrite hallucinated subdomains → www.neurotoned.com
+    finalReply = finalReply.replace(
+      /https?:\/\/(programs|app|members|courses|portal)\.neurotoned\.com/gi,
+      "https://www.neurotoned.com"
+    );
 
     return NextResponse.json({ response: finalReply });
   } catch (error: unknown) {

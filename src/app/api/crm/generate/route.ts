@@ -369,7 +369,13 @@ Diagnostic Matrix (Common Scenarios):
       );
     }
 
-    return NextResponse.json({ response: finalReply });
+    // Rewrite hallucinated subdomains → www.neurotoned.com
+    const sanitizedReply = finalReply.replace(
+      /https?:\/\/(programs|app|members|courses|portal)\.neurotoned\.com/gi,
+      "https://www.neurotoned.com"
+    );
+
+    return NextResponse.json({ response: sanitizedReply });
   } catch (error: any) {
     console.error("CRM Generate Error:", error);
     return NextResponse.json({ error: error.message || "Failed to generate response." }, { status: 500 });
