@@ -1,8 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Sparkles, Copy, CheckCircle2, MessageSquareText, PenLine, Send, CornerDownLeft } from "lucide-react"
+import { Sparkles, Copy, CheckCircle2, MessageSquareText, PenLine, Send, CornerDownLeft, Lightbulb } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -12,11 +12,31 @@ import { cn } from "@/lib/utils"
 
 export default function WorkspacePage() {
   const [email, setEmail] = useState("")
+  const [agentContext, setAgentContext] = useState("")
   const [response, setResponse] = useState("")
   const [isGenerating, setIsGenerating] = useState(false)
   const [copied, setCopied] = useState(false)
 
   const [activeTab, setActiveTab] = useState<"message" | "reply">("message")
+
+  // ── Rotating enrichment hints ───────────────────────────────────────────
+  const ENRICH_HINTS = [
+    'e.g., Changed password to HappyJae2026!',
+    'e.g., Client at 15% engagement, refund approved per SOP',
+    'e.g., This is a one-time purchase, no subscription to cancel',
+    'e.g., Re-granted access to the 30-Day Program',
+    'e.g., Customer has ADHD, keep instructions simple and short',
+    'e.g., Refund already processed, just confirm the timeline',
+  ]
+  const [hintIndex, setHintIndex] = useState(0)
+
+  useEffect(() => {
+    if (agentContext) return
+    const interval = setInterval(() => {
+      setHintIndex((i) => (i + 1) % ENRICH_HINTS.length)
+    }, 3000)
+    return () => clearInterval(interval)
+  }, [agentContext])
 
   const handleGenerate = async () => {
     if (!email.trim()) {
@@ -32,7 +52,7 @@ export default function WorkspacePage() {
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email })
+        body: JSON.stringify({ email, agentContext: agentContext.trim() || undefined })
       })
 
       const data = await res.json()
@@ -127,6 +147,21 @@ export default function WorkspacePage() {
               onChange={(e) => setEmail(e.target.value)}
               onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") handleGenerate() }}
             />
+
+            {/* Agent Enrichment Field */}
+            <div className="mt-4 pt-4 border-t border-[#152218]/50">
+              <div className="flex items-center gap-2 mb-2">
+                <Lightbulb className="w-3.5 h-3.5 text-primary" />
+                <span className="text-[10px] font-semibold tracking-widest text-[#547A63] uppercase">Agent Enrich</span>
+              </div>
+              <textarea
+                value={agentContext}
+                onChange={(e) => setAgentContext(e.target.value)}
+                placeholder={ENRICH_HINTS[hintIndex]}
+                rows={2}
+                className="w-full rounded-lg border border-[#152218] bg-[#0D1E14]/50 px-3 py-2 text-[13px] text-[#F4F8F5] placeholder:text-[#547A63]/50 placeholder:italic focus:outline-none focus:ring-1 focus:ring-primary/40 focus:border-primary/30 resize-none transition-all"
+              />
+            </div>
             
             <div className="mt-4 pt-4 border-t border-[#152218]/50 flex items-center justify-between shrink-0 sticky bottom-0 bg-card">
               <span className="text-[11px] text-[#547A63] items-center gap-1.5 opacity-0 md:group-hover:opacity-100 transition-opacity hidden sm:flex font-medium">

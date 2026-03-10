@@ -1,8 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Sparkles, Copy, CheckCircle2, MessageSquareText, PenLine, Send, CornerDownLeft, ArrowLeft } from "lucide-react"
+import { Sparkles, Copy, CheckCircle2, MessageSquareText, PenLine, Send, CornerDownLeft, ArrowLeft, Lightbulb } from "lucide-react"
 import { toast } from "sonner"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -19,6 +19,26 @@ export function ResolutionWorkspaceClient({ initialConcern }: { initialConcern: 
   const [isGenerating, setIsGenerating] = useState(false)
   const [isResolving, setIsResolving] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [agentContext, setAgentContext] = useState("")
+
+  // ── Rotating enrichment hints ───────────────────────────────────────────
+  const ENRICH_HINTS = [
+    'e.g., Changed password to HappyJae2026!',
+    'e.g., Client at 15% engagement, refund approved per SOP',
+    'e.g., This is a one-time purchase, no subscription to cancel',
+    'e.g., Re-granted access to the 30-Day Program',
+    'e.g., Customer has ADHD, keep instructions simple and short',
+    'e.g., Refund already processed, just confirm the timeline',
+  ]
+  const [hintIndex, setHintIndex] = useState(0)
+
+  useEffect(() => {
+    if (agentContext) return
+    const interval = setInterval(() => {
+      setHintIndex((i) => (i + 1) % ENRICH_HINTS.length)
+    }, 3000)
+    return () => clearInterval(interval)
+  }, [agentContext])
 
   const handleGenerate = async () => {
     setIsGenerating(true)
@@ -28,7 +48,7 @@ export function ResolutionWorkspaceClient({ initialConcern }: { initialConcern: 
       const res = await fetch("/api/crm/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: concern.id })
+        body: JSON.stringify({ id: concern.id, agentContext: agentContext.trim() || undefined })
       })
       const data = await res.json()
 
@@ -115,6 +135,20 @@ export function ResolutionWorkspaceClient({ initialConcern }: { initialConcern: 
               <div className="p-4 bg-muted/30 rounded-lg text-[15px] text-foreground leading-relaxed whitespace-pre-wrap border border-border/50">
                 {concern.raw_customer_email}
               </div>
+          </div>
+
+          <div className="mt-6 pt-6 border-t border-border">
+            <div className="flex items-center gap-2 mb-3">
+              <Lightbulb className="w-4 h-4 text-primary" />
+              <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Agent Enrich</p>
+            </div>
+            <textarea
+              value={agentContext}
+              onChange={(e) => setAgentContext(e.target.value)}
+              placeholder={ENRICH_HINTS[hintIndex]}
+              rows={3}
+              className="w-full rounded-lg border-2 border-primary/30 bg-primary/5 px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/50 placeholder:italic focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/50 resize-none transition-all"
+            />
           </div>
         </div>
         
