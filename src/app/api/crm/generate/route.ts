@@ -220,6 +220,8 @@ Formatting rules:
 - Keep it conversational.
 - Max 4 paragraphs. Say more with less.
 - Never repeat the same sentiment twice.
+- Eliminate filler: never use "Thanks for reaching out", "Please don't hesitate", "feel free to", "absolutely".
+- WHITELIST: The phrase "If anything seems unclear or if we could've done anything differently to make this a better experience, please let us know. We're always here with you." IS allowed as a standard closing. This is the ONLY canned line permitted.
 - Every sentence must validate emotion, deliver information, or ask a question. If it does none, cut it.
 - Closing: ONE sentence max.
 - THE GRACEFUL EXIT: The email must end gently. The closing question is the LAST sentence. Do NOT append any signature or name after it.
