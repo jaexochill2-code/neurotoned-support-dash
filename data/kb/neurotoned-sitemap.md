@@ -6,6 +6,11 @@ brand: Neurotoned
 
 # Neurotoned Links
 
+### Account & Access (Critical)
+- [Login](https://www.neurotoned.com/login)
+- [Password Reset](https://www.neurotoned.com/password/new)
+- [Library (All Programs)](https://www.neurotoned.com/library)
+
 ### Core Pages & Support
 - [Frequently Asked Questions](https://www.neurotoned.com/frequently-asked-questions)
 - [Bma Privacy Policy](https://www.neurotoned.com/bma-privacy-policy)
