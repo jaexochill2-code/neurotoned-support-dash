@@ -262,15 +262,15 @@ Diagnostic Matrix (Common Scenarios):
 
     prompt += `<customer_email>\n${email}\n</customer_email>`;
 
-    // ── Generate ─────────────────────────────────────────────────────────────
-    const result = await model.generateContent({
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
+    // ── Generate (with 1 retry on transient failures) ──────────────────────
+    const genConfig = {
+      contents: [{ role: "user" as const, parts: [{ text: prompt }] }],
       generationConfig: {
         maxOutputTokens: 2000,
         temperature: 1.0,
-        responseMimeType: "application/json",
+        responseMimeType: "application/json" as const,
         responseSchema: {
-          type: SchemaType.OBJECT,
+          type: SchemaType.OBJECT as SchemaType.OBJECT,
           properties: {
             emotion_read: {
               type: SchemaType.OBJECT,
@@ -322,28 +322,71 @@ Diagnostic Matrix (Common Scenarios):
         { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
         { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
       ]
-    });
+    };
 
-    // ── Parse ────────────────────────────────────────────────────────────────
-    let fullText = "";
-    try {
-      fullText = result.response.text();
-    } catch {
-      const candidate = result.response.candidates?.[0];
-      throw new Error(candidate?.finishReason
-        ? `AI response blocked. Reason: ${candidate.finishReason}`
-        : "AI returned an empty or unreadable response.");
+    let parsedData: any = null;
+    let lastError = "";
+
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const result = await model.generateContent(genConfig as any);
+
+        // ── Safety / Empty Check ──────────────────────────────────────────────
+        const candidate = result.response.candidates?.[0];
+        const finishReason = candidate?.finishReason;
+
+        if (finishReason === "SAFETY" || finishReason === "RECITATION") {
+          console.error(`[Generate] Blocked by safety filter: ${finishReason}`, candidate?.safetyRatings);
+          lastError = `Response blocked by safety filter (${finishReason}). This may happen with sensitive topics. Please try rephrasing.`;
+          continue; // retry
+        }
+
+        let fullText = "";
+        try {
+          fullText = result.response.text();
+        } catch {
+          console.error(`[Generate] text() threw. finishReason: ${finishReason}`, candidate?.safetyRatings);
+          lastError = finishReason
+            ? `AI response blocked (${finishReason}). Please try again.`
+            : "AI returned an empty or unreadable response.";
+          continue; // retry
+        }
+
+        if (!fullText || fullText.trim() === "") {
+          lastError = "AI returned an empty response.";
+          continue; // retry
+        }
+
+        // ── JSON Parse ────────────────────────────────────────────────────────
+        try {
+          parsedData = JSON.parse(fullText);
+        } catch {
+          console.error("[Generate] JSON parse failed. Raw text:", fullText.substring(0, 500));
+
+          // Fallback: try to extract just the reply field with regex
+          const replyMatch = fullText.match(/"reply"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+          if (replyMatch?.[1]) {
+            console.log("[Generate] Fallback: extracted reply from malformed JSON");
+            parsedData = { reply: replyMatch[1].replace(/\\n/g, "\n").replace(/\\"/g, '"') };
+          } else {
+            lastError = "AI response was malformed. Please try again.";
+            continue; // retry
+          }
+        }
+
+        // If we got here, we have parsedData
+        break;
+
+      } catch (genError) {
+        console.error(`[Generate] Attempt ${attempt + 1} failed:`, genError);
+        lastError = genError instanceof Error ? genError.message : "Generation failed.";
+        if (attempt === 0) continue; // retry once
+      }
     }
 
-    if (!fullText || fullText.trim() === "") {
-      throw new Error("AI returned an empty response.");
-    }
-
-    let parsedData;
-    try {
-      parsedData = JSON.parse(fullText);
-    } catch {
-      return NextResponse.json({ error: "AI response was not valid JSON. Please try again." }, { status: 500 });
+    // ── If both attempts failed ──────────────────────────────────────────────
+    if (!parsedData) {
+      return NextResponse.json({ error: lastError || "Failed to generate response after 2 attempts." }, { status: 500 });
     }
 
     // ── CRM Save (fire-and-forget) ───────────────────────────────────────────

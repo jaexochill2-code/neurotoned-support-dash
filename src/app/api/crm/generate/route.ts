@@ -294,14 +294,14 @@ Diagnostic Matrix (Common Scenarios):
 
     prompt += `<customer_email>\n${email}\n</customer_email>`;
 
-    const result = await model.generateContent({
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
+    const genConfig = {
+      contents: [{ role: "user" as const, parts: [{ text: prompt }] }],
       generationConfig: { 
         maxOutputTokens: 2000,
         temperature: 1.0,
-        responseMimeType: "application/json",
+        responseMimeType: "application/json" as const,
         responseSchema: {
-          type: SchemaType.OBJECT,
+          type: SchemaType.OBJECT as SchemaType.OBJECT,
           properties: {
             emotion_read: {
               type: SchemaType.OBJECT,
@@ -337,36 +337,73 @@ Diagnostic Matrix (Common Scenarios):
         { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
         { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
       ]
-    });
+    };
 
-    let fullText = "";
-    try {
-      fullText = result.response.text();
-    } catch (textError) {
-      throw new Error("AI returned an empty or unreadable response.");
+    let parsedData: any = null;
+    let lastError = "";
+
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const result = await model.generateContent(genConfig as any);
+
+        // ── Safety / Empty Check ──────────────────────────────────────────────
+        const candidate = result.response.candidates?.[0];
+        const finishReason = candidate?.finishReason;
+
+        if (finishReason === "SAFETY" || finishReason === "RECITATION") {
+          console.error(`[CRM Generate] Blocked by safety filter: ${finishReason}`, candidate?.safetyRatings);
+          lastError = `Response blocked by safety filter (${finishReason}). This may happen with sensitive topics. Please try rephrasing.`;
+          continue;
+        }
+
+        let fullText = "";
+        try {
+          fullText = result.response.text();
+        } catch {
+          console.error(`[CRM Generate] text() threw. finishReason: ${finishReason}`, candidate?.safetyRatings);
+          lastError = finishReason
+            ? `AI response blocked (${finishReason}). Please try again.`
+            : "AI returned an empty or unreadable response.";
+          continue;
+        }
+
+        if (!fullText || fullText.trim() === "") {
+          lastError = "AI returned an empty response.";
+          continue;
+        }
+
+        // ── JSON Parse ────────────────────────────────────────────────────────
+        try {
+          parsedData = JSON.parse(fullText);
+        } catch {
+          console.error("[CRM Generate] JSON parse failed. Raw text:", fullText.substring(0, 500));
+
+          const replyMatch = fullText.match(/"reply"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+          if (replyMatch?.[1]) {
+            console.log("[CRM Generate] Fallback: extracted reply from malformed JSON");
+            parsedData = { reply: replyMatch[1].replace(/\\n/g, "\n").replace(/\\"/g, '"') };
+          } else {
+            lastError = "AI response was malformed. Please try again.";
+            continue;
+          }
+        }
+
+        break;
+
+      } catch (genError) {
+        console.error(`[CRM Generate] Attempt ${attempt + 1} failed:`, genError);
+        lastError = genError instanceof Error ? genError.message : "Generation failed.";
+        if (attempt === 0) continue;
+      }
     }
 
-    if (!fullText || fullText.trim() === "") {
-      throw new Error("AI returned an empty response. The input may have been flagged or blocked.");
-    }
-
-    let parsedData;
-    try {
-      parsedData = JSON.parse(fullText);
-    } catch (parseError) {
-      console.error("Gemini failed to return valid JSON", parseError);
-      return NextResponse.json(
-        { error: "AI response was not valid JSON. Please try again." },
-        { status: 500 }
-      );
+    if (!parsedData) {
+      return NextResponse.json({ error: lastError || "Failed to generate response after 2 attempts." }, { status: 500 });
     }
 
     const finalReply = parsedData.reply?.trim();
     if (!finalReply) {
-      return NextResponse.json(
-        { error: "The AI generated an empty reply field. Please try again." },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: "The AI generated an empty reply. Please try again." }, { status: 500 });
     }
 
     // Rewrite hallucinated subdomains → www.neurotoned.com
