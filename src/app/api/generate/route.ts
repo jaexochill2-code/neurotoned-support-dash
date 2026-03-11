@@ -495,13 +495,9 @@ Diagnostic Matrix (Common Scenarios):
       if (EXCLUDED_BINS.includes(parsedData.analytics.concern_bin ?? "")) {
         // Remove any trailing sentence(s) ending in "?"
         parsedData.reply = parsedData.reply
-          .split(/
-
-/)
+          .split("\n\n")
           .filter((para: string) => !para.trim().endsWith("?") || para.trim().split(/[.!?]/).filter(Boolean).length > 2)
-          .join("
-
-")
+          .join("\n\n")
           .trim();
       }
     }
@@ -524,6 +520,10 @@ Diagnostic Matrix (Common Scenarios):
     // Phase 0: Ensure greeting is its own paragraph
     // "Hi Alice, body text..." → "Hi Alice,\n\nbody text..."
     finalReply = finalReply.replace(/(Hi\s+[\w]+,)\s+([A-Z])/g, '$1\n\n$2');
+
+    // Phase 0.5: Replace any unresolved [First Name] / [Name] / [Customer Name] placeholders
+    // Falls back to a warm nameless opener so agents never send a template artifact to customers
+    finalReply = finalReply.replace(/^Hi\s*\[[\w\s]+\],?/gim, 'Hi,');
 
     // Phase 1: Safe word-for-word swaps (no sentence structure risk)
     finalReply = finalReply
