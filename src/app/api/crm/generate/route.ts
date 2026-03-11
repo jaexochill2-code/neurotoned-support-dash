@@ -4,6 +4,9 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { getKbContext } from "@/lib/kb-cache";
 import { cookies } from "next/headers";
 
+// Allow up to 60s — Gemini with large KB context can exceed Vercel's 10s default
+export const maxDuration = 60;
+
 // ── Module-level Gemini client (reused across warm invocations) ──────────────
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
@@ -78,21 +81,21 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "GEMINI_API_KEY is not set." }, { status: 500 });
     }
 
-    // 1. Fetch raw email from the concern
-    const { data: concern, error: concernError } = await supabaseAdmin
-      .from("customer_concerns")
-      .select("raw_customer_email, customer_name, concern_category, severity_distress_level")
-      .eq("id", id)
-      .single();
+    // 1. Fetch concern + KB context in parallel (not sequential)
+    const [{ data: concern, error: concernError }, kbContext] = await Promise.all([
+      supabaseAdmin
+        .from("customer_concerns")
+        .select("raw_customer_email, customer_name, concern_category, severity_distress_level")
+        .eq("id", id)
+        .single(),
+      getKbContext()
+    ]);
 
     if (concernError || !concern) {
       return NextResponse.json({ error: "Failed to fetch concern details." }, { status: 404 });
     }
 
     const email = concern.raw_customer_email;
-
-    // 2. KB Context (shared cache — auto-invalidates on KB edits)
-    const kbContext = await getKbContext();
 
     // 3. Persona cycling
     const currentPersona = getNextPersona();
@@ -441,10 +444,30 @@ Diagnostic Matrix (Common Scenarios):
     }
 
     // Rewrite hallucinated subdomains → www.neurotoned.com
-    const sanitizedReply = finalReply.replace(
+    let sanitizedReply = finalReply.replace(
       /https?:\/\/(programs|app|members|courses|portal)\.neurotoned\.com/gi,
       "https://www.neurotoned.com"
     );
+
+    // ── Server-side banned word sanitizer (mirrors main generate route) ──────
+    sanitizedReply = sanitizedReply
+      .replace(/\bwe can absolutely\b/gi, "we can")
+      .replace(/\bI can absolutely\b/gi, "I can")
+      .replace(/\byou can absolutely\b/gi, "you can")
+      .replace(/\bwill absolutely\b/gi, "will")
+      .replace(/\babsolutely\b/gi, "")
+      .replace(/\bI can certainly\b/gi, "I can")
+      .replace(/\bwe can certainly\b/gi, "we can")
+      .replace(/\bcertainly\b/gi, "")
+      .replace(/\bfeel free to\b/gi, "go ahead and")
+      .replace(/\bPlease don't hesitate\b/gi, "")
+      .replace(/\bdon't hesitate to\b/gi, "")
+      .replace(/\bThanks for reaching out[.,]?\s*/gi, "")
+      .replace(/\bThank you for reaching out[.,]?\s*/gi, "")
+      .replace(/\bI hope this helps[.,]?\s*/gi, "")
+      .replace(/  +/g, " ")
+      .replace(/ ([.,!?])/g, "$1")
+      .trim();
 
     return NextResponse.json({ response: sanitizedReply });
   } catch (error: any) {

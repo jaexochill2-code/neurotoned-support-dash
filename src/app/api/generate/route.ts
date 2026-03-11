@@ -4,6 +4,9 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { getKbContext } from "@/lib/kb-cache";
 import { cookies } from "next/headers";
 
+// Allow up to 60s — Gemini with large KB context can exceed Vercel's 10s default
+export const maxDuration = 60;
+
 const MAX_EMAIL_LENGTH = 10_000;
 
 // ── Module-level Gemini client (reused across warm invocations) ──────────────
