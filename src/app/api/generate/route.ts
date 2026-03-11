@@ -433,6 +433,32 @@ Diagnostic Matrix (Common Scenarios):
       "https://www.neurotoned.com"
     );
 
+    // ── Server-side banned word sanitizer ────────────────────────────────────
+    // Prompt instructions alone can't guarantee exclusion. These replacements
+    // fire on every reply before it reaches the user — 100% reliable enforcement.
+    finalReply = finalReply
+      // "absolutely" in common constructions
+      .replace(/\bwe can absolutely\b/gi, "we can")
+      .replace(/\bI can absolutely\b/gi, "I can")
+      .replace(/\byou can absolutely\b/gi, "you can")
+      .replace(/\bwill absolutely\b/gi, "will")
+      .replace(/\babsolutely\b/gi, "")
+      // "certainly" variations
+      .replace(/\bI can certainly\b/gi, "I can")
+      .replace(/\bwe can certainly\b/gi, "we can")
+      .replace(/\bcertainly\b/gi, "")
+      // Generic openers
+      .replace(/\bfeel free to\b/gi, "go ahead and")
+      .replace(/\bPlease don't hesitate\b/gi, "")
+      .replace(/\bdon't hesitate to\b/gi, "")
+      .replace(/\bThanks for reaching out[.,]?\s*/gi, "")
+      .replace(/\bThank you for reaching out[.,]?\s*/gi, "")
+      .replace(/\bI hope this helps[.,]?\s*/gi, "")
+      // Clean up any double spaces left by removals
+      .replace(/  +/g, " ")
+      .replace(/ ([.,!?])/g, "$1")
+      .trim();
+
     return NextResponse.json({ response: finalReply });
   } catch (error: unknown) {
     console.error("Generate API Error:", error);
