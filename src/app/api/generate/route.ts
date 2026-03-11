@@ -294,6 +294,11 @@ CLOSING QUESTION GATE — only add a closing question AFTER the MAGIC TOUCH when
 2. The customer's tone is neutral or positive — NOT frustrated, upset, confused, or urgent
 3. The question is genuinely relevant — NOT generic engagement bait
 If ANY condition is not met: end with the MAGIC TOUCH only. No question.
+HARD SCENARIO EXCLUSIONS — NEVER add a closing question for these, regardless of tone:
+- Technical / Login issues (password, account access) — customer has not confirmed it worked yet
+- Program Access issues — customer has not confirmed they found their programs yet
+- Shipping / Missing Order — resolution is pending, not confirmed
+- Any scenario where the reply contains "reply to this email", "let us know if", or "if that doesn't work"
 
 Diagnostic Matrix (Common Scenarios):
 - "Can't login" → MUST send login link [https://www.neurotoned.com/login] AND password reset [https://www.neurotoned.com/password/new]. Offer to manually reset if they reply.
@@ -496,6 +501,10 @@ Diagnostic Matrix (Common Scenarios):
 
     // ── Server-side reply sanitizer and formatter ──────────────────────────────
     // All phases run on every reply before it reaches the user.
+
+    // Phase 0: Ensure greeting is its own paragraph
+    // "Hi Alice, body text..." → "Hi Alice,\n\nbody text..."
+    finalReply = finalReply.replace(/(Hi\s+[\w]+,)\s+([A-Z])/g, '$1\n\n$2');
 
     // Phase 1: Safe word-for-word swaps (no sentence structure risk)
     finalReply = finalReply
