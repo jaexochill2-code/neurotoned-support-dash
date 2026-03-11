@@ -13,25 +13,29 @@ const MAX_EMAIL_LENGTH = 10_000;
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
 // ── Analytics: Fire-and-forget save to CRM ──────────────────────────────────
-const VALID_BINS = ["Refund", "Cancellation", "Product Fit", "Marketing", "Access / Login", "UX / App", "General"];
+const VALID_BINS = ["Program Refund", "Program Access", "Subscription Cancel", "Billing Confusion", "Technical / Login", "Content / Program Question", "Reconnect+ Issue", "Shipping / Missing Order", "Health / Medical", "General Feedback", "Other"];
 
 async function saveToCrm(analytics: Record<string, string>, rawEmail: string) {
   try {
-    const rawBin = analytics.concern_bin || "General";
-    const category = VALID_BINS.includes(rawBin) ? rawBin : "General";
+    const rawBin = analytics.concern_bin || "Other";
+    const category = VALID_BINS.includes(rawBin) ? rawBin : "Other";
     const severityMap: Record<string, string> = { low: "Low", medium: "Medium", high: "High" };
     const severity = severityMap[analytics.intensity?.toLowerCase()] ?? "Medium";
 
-    await supabaseAdmin.from("customer_concerns").insert({
+    const { error } = await supabaseAdmin.from("customer_concerns").insert({
       customer_name: analytics.customer_name ?? "Anonymous",
       customer_email_address: analytics.customer_email ?? "unknown@unknown.com",
       concern_category: category,
       sub_reason: analytics.sub_reason ?? "other",
       concern_summary: analytics.summary,
       severity_distress_level: severity,
+      root_cause: analytics.root_cause ?? "unclear",
+      urgency: analytics.urgency ?? "low",
+      churn_risk: analytics.churn_risk ?? "low",
       raw_customer_email: rawEmail,
       status: "Pending",
     });
+    if (error) console.error("CRM insert error:", error.message, error.details);
   } catch (err) {
     console.error("CRM save failed (non-fatal):", err);
   }
