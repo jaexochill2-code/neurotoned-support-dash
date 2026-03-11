@@ -406,24 +406,45 @@ Diagnostic Matrix (Common Scenarios):
       "https://www.neurotoned.com"
     );
 
-    // ── Server-side banned word sanitizer (mirrors main generate route) ──────
+    // ── Server-side reply sanitizer and formatter (mirrors main generate route) ──
+
+    // Phase 1: Safe word-for-word swaps
     sanitizedReply = sanitizedReply
       .replace(/\bwe can absolutely\b/gi, "we can")
       .replace(/\bI can absolutely\b/gi, "I can")
       .replace(/\byou can absolutely\b/gi, "you can")
       .replace(/\bwill absolutely\b/gi, "will")
-      .replace(/\babsolutely\b/gi, "")
       .replace(/\bI can certainly\b/gi, "I can")
       .replace(/\bwe can certainly\b/gi, "we can")
-      .replace(/\bcertainly\b/gi, "")
-      .replace(/\bfeel free to\b/gi, "go ahead and")
-      .replace(/\bPlease don't hesitate\b/gi, "")
-      .replace(/\bdon't hesitate to\b/gi, "")
-      .replace(/\bThanks for reaching out[.,]?\s*/gi, "")
-      .replace(/\bThank you for reaching out[.,]?\s*/gi, "")
-      .replace(/\bI hope this helps[.,]?\s*/gi, "")
-      .replace(/  +/g, " ")
+      .replace(/\bfeel free to\b/gi, "go ahead and");
+
+    // Phase 2: Standalone sentence opener removal
+    sanitizedReply = sanitizedReply
+      .replace(/^Thanks for reaching out[.,]?\s*/gim, "")
+      .replace(/^Thank you for reaching out[.,]?\s*/gim, "")
+      .replace(/^I hope this helps[.,]?\s*/gim, "");
+
+    // Phase 3: Full-clause removal — removes the trailing clause too to avoid fragments
+    sanitizedReply = sanitizedReply
+      .replace(/[,.]?\s*[Pp]lease don't hesitate to[^.!?\n]*/g, "")
+      .replace(/[,.]?\s*[Dd]on't hesitate to[^.!?\n]*/g, "")
+      .replace(/\babsolutely\b/gi, "")
+      .replace(/\bcertainly\b/gi, "");
+
+    // Phase 4: Paragraph normalization — the frontend splits on \n\n, so we enforce it
+    sanitizedReply = sanitizedReply
+      .replace(/\r\n/g, "\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .split("\n\n")
+      .map((p: string) => p.replace(/\n/g, " ").replace(/  +/g, " ").trim())
+      .filter((p: string) => p.length > 0)
+      .join("\n\n");
+
+    // Phase 5: Punctuation repair
+    sanitizedReply = sanitizedReply
       .replace(/ ([.,!?])/g, "$1")
+      .replace(/([.,!?]){2,}/g, "$1")
+      .replace(/,\s*\./g, ".")
       .trim();
 
     return NextResponse.json({ response: sanitizedReply });

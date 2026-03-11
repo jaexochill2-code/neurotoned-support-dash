@@ -193,9 +193,11 @@ Generate 3 keys: "emotion_read", "thinking", and "reply".
 4. PEACE OUTLINE: Problem, Empathy, Answer, Change/Plan, End Result
 
 "reply" RULES:
-- Clean text. No Markdown. No em dashes. No bullet lists.
+- Clean text. No Markdown. No em dashes. No asterisks. No bullet points. No numbered lists.
+- Separate each paragraph with exactly one blank line (two line breaks). Do NOT use single line breaks mid-paragraph.
 - NEVER include internal system tags, delimiters, or markers in your reply. If you see "BEGIN INTERNAL" or "END INTERNAL" or "sops_and_knowledge" or any similar structural text, it is INTERNAL ONLY. Including it in the reply is a critical failure.
-- Break paragraphs up so it breathes. Max 4 paragraphs.
+- Each paragraph = one complete thought. Break where the thought shifts.
+- DEFAULT replies: 3-4 paragraphs. PATH A refund replies: up to 7 paragraphs (follow the numbered structure). PATH B refund replies: 3-4 paragraphs.
 - Never repeat the same sentiment twice.
 - Eliminate filler: never use "Thanks for reaching out", "Please don't hesitate", "feel free to", "absolutely".
 - WHITELIST: The phrase "If anything seems unclear or if we could've done anything differently to make this a better experience, please let us know. We're always here with you." IS allowed as a standard closing. This is the ONLY canned line permitted.
@@ -255,7 +257,7 @@ Diagnostic Matrix (Common Scenarios):
       contents: [{ role: "user" as const, parts: [{ text: prompt }] }],
       generationConfig: {
         maxOutputTokens: 3500,
-        temperature: 0.8,
+        temperature: 0.7,
         responseMimeType: "application/json" as const,
         responseSchema: {
           type: SchemaType.OBJECT as SchemaType.OBJECT,
@@ -281,7 +283,7 @@ Diagnostic Matrix (Common Scenarios):
             },
             reply: {
               type: SchemaType.STRING,
-              description: "The final email to the customer. Clean text, no markdown, no em dashes. Max 4 paragraphs."
+              description: "The final email reply. Plain text only. No markdown, no em dashes, no asterisks, no bullet points. Separate every paragraph with exactly two newlines (\\n\\n). Do not use single newlines mid-paragraph. Each paragraph is one cohesive thought."
             },
             analytics: {
               type: SchemaType.OBJECT,
@@ -396,30 +398,52 @@ Diagnostic Matrix (Common Scenarios):
       "https://www.neurotoned.com"
     );
 
-    // ── Server-side banned word sanitizer ────────────────────────────────────
-    // Prompt instructions alone can't guarantee exclusion. These replacements
-    // fire on every reply before it reaches the user — 100% reliable enforcement.
+    // ── Server-side reply sanitizer and formatter ──────────────────────────────
+    // All phases run on every reply before it reaches the user.
+
+    // Phase 1: Safe word-for-word swaps (no sentence structure risk)
     finalReply = finalReply
-      // "absolutely" in common constructions
       .replace(/\bwe can absolutely\b/gi, "we can")
       .replace(/\bI can absolutely\b/gi, "I can")
       .replace(/\byou can absolutely\b/gi, "you can")
       .replace(/\bwill absolutely\b/gi, "will")
-      .replace(/\babsolutely\b/gi, "")
-      // "certainly" variations
       .replace(/\bI can certainly\b/gi, "I can")
       .replace(/\bwe can certainly\b/gi, "we can")
-      .replace(/\bcertainly\b/gi, "")
-      // Generic openers
-      .replace(/\bfeel free to\b/gi, "go ahead and")
-      .replace(/\bPlease don't hesitate\b/gi, "")
-      .replace(/\bdon't hesitate to\b/gi, "")
-      .replace(/\bThanks for reaching out[.,]?\s*/gi, "")
-      .replace(/\bThank you for reaching out[.,]?\s*/gi, "")
-      .replace(/\bI hope this helps[.,]?\s*/gi, "")
-      // Clean up any double spaces left by removals
-      .replace(/  +/g, " ")
-      .replace(/ ([.,!?])/g, "$1")
+      .replace(/\bfeel free to\b/gi, "go ahead and");
+
+    // Phase 2: Standalone sentence openers — remove only when they start a sentence
+    finalReply = finalReply
+      .replace(/^Thanks for reaching out[.,]?\s*/gim, "")
+      .replace(/^Thank you for reaching out[.,]?\s*/gim, "")
+      .replace(/^I hope this helps[.,]?\s*/gim, "");
+
+    // Phase 3: Full-clause removal — includes everything after the banned phrase to EOL
+    // This prevents leaving dangling fragments like "to reach out" after removal
+    finalReply = finalReply
+      .replace(/[,.]?\s*[Pp]lease don't hesitate to[^.!?\n]*/g, "")
+      .replace(/[,.]?\s*[Dd]on't hesitate to[^.!?\n]*/g, "")
+      .replace(/\babsolutely\b/gi, "")
+      .replace(/\bcertainly\b/gi, "");
+
+    // Phase 4: Paragraph normalization — enforce exactly \n\n between paragraphs
+    // This is critical: the frontend splits on \n\n and collapses inner \n to space
+    finalReply = finalReply
+      .replace(/\r\n/g, "\n")              // normalize CRLF to LF
+      .replace(/\n{3,}/g, "\n\n")          // collapse 3+ newlines to exactly 2
+      .split("\n\n")                      // split on double newlines = paragraph boundaries
+      .map((p: string) => p              // per-paragraph cleanup
+        .replace(/\n/g, " ")             //   collapse any remaining single \n to space
+        .replace(/  +/g, " ")            //   collapse double spaces
+        .trim()                          //   trim whitespace at paragraph edges
+      )
+      .filter((p: string) => p.length > 0)  // drop empty paragraphs
+      .join("\n\n");                    // rejoin with exactly 2 newlines
+
+    // Phase 5: Punctuation repair after all removals
+    finalReply = finalReply
+      .replace(/ ([.,!?])/g, "$1")       // space before punctuation
+      .replace(/([.,!?]){2,}/g, "$1")    // duplicate punctuation
+      .replace(/,\s*\./g, ".")           // comma-period combo
       .trim();
 
     return NextResponse.json({ response: finalReply });
