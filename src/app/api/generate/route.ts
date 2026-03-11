@@ -294,7 +294,6 @@ Diagnostic Matrix (Common Scenarios):
       generationConfig: {
         maxOutputTokens: 2000,
         temperature: 0.8,
-        thinkingConfig: { thinkingBudget: 4096 },
         responseMimeType: "application/json" as const,
         responseSchema: {
           type: SchemaType.OBJECT as SchemaType.OBJECT,
