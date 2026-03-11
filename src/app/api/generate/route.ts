@@ -22,35 +22,19 @@ async function saveToCrm(analytics: Record<string, string>, rawEmail: string) {
     const severityMap: Record<string, string> = { low: "Low", medium: "Medium", high: "High" };
     const severity = severityMap[analytics.intensity?.toLowerCase()] ?? "Medium";
 
-    const basePayload = {
+    const { error } = await supabaseAdmin.from("customer_concerns").insert({
       customer_name: analytics.customer_name ?? "Anonymous",
       customer_email_address: analytics.customer_email ?? "unknown@unknown.com",
       concern_category: category,
       sub_reason: analytics.sub_reason ?? "other",
-      concern_summary: analytics.summary,
+      concern_summary: analytics.summary ?? "",
       severity_distress_level: severity,
       raw_customer_email: rawEmail,
       status: "Pending",
-    };
-
-    // Try with new analytics columns first
-    const { error } = await supabaseAdmin.from("customer_concerns").insert({
-      ...basePayload,
-      root_cause: analytics.root_cause ?? "unclear",
-      urgency: analytics.urgency ?? "low",
-      churn_risk: analytics.churn_risk ?? "low",
     });
 
-    if (error) {
-      // If new columns don't exist yet, fall back to base payload only
-      if (error.message?.includes("root_cause") || error.message?.includes("urgency") || error.message?.includes("churn_risk")) {
-        console.warn("CRM: new analytics columns not yet in DB — saving base fields only. Run the Supabase migration.");
-        const { error: fallbackErr } = await supabaseAdmin.from("customer_concerns").insert(basePayload);
-        if (fallbackErr) console.error("CRM fallback insert error:", fallbackErr.message);
-      } else {
-        console.error("CRM insert error:", error.message, error.details);
-      }
-    }
+    if (error) console.error("[CRM] Insert error:", error.code, error.message);
+    else console.log("[CRM] Saved:", category, "|", analytics.sub_reason?.slice(0, 40));
   } catch (err) {
     console.error("CRM save failed (non-fatal):", err);
   }
