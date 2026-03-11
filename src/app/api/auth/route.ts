@@ -9,7 +9,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Username and password are required" }, { status: 400 });
     }
 
-    const adminPassword = process.env.ADMIN_PASSWORD || "password";
+    if (!process.env.ADMIN_PASSWORD) {
+      return NextResponse.json({ error: "Server misconfiguration." }, { status: 500 });
+    }
+    const adminPassword = process.env.ADMIN_PASSWORD;
     if (username.toLowerCase() !== "admin" || password !== adminPassword) {
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
     }

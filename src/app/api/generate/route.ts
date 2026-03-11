@@ -42,7 +42,6 @@ async function saveToCrm(analytics: Record<string, string>, rawEmail: string) {
 
 
 
-
 export async function POST(req: Request) {
   try {
     // ── Auth ─────────────────────────────────────────────────────────────────
@@ -53,6 +52,10 @@ export async function POST(req: Request) {
     }
 
     const { email, agentContext } = await req.json();
+
+    if (agentContext && typeof agentContext === "string" && agentContext.length > 5000) {
+      return NextResponse.json({ error: "Agent context is too long." }, { status: 400 });
+    }
 
     if (!email || typeof email !== "string") {
       return NextResponse.json({ error: "Valid email text is required." }, { status: 400 });
@@ -473,7 +476,7 @@ HARD EXCLUSIONS — never add a closing question regardless of any condition:
 
     // ── CRM Save (fire-and-forget) ───────────────────────────────────────────
     if (parsedData.analytics) {
-      saveToCrm(parsedData.analytics, email).catch(() => {});
+      saveToCrm(parsedData.analytics, email).catch((e) => console.error('[CRM] Fire-and-forget failed:', e));
     }
 
     // ── Server-side closing question gate ──────────────────────────────────────
@@ -491,7 +494,7 @@ HARD EXCLUSIONS — never add a closing question regardless of any condition:
       }
     }
 
-// ── Extract Reply ────────────────────────────────────────────────────────
+    // ── Extract Reply ────────────────────────────────────────────────────────
     let finalReply = parsedData.reply?.trim();
     if (!finalReply) {
       return NextResponse.json({ error: "The AI generated an empty reply. Please try again." }, { status: 500 });
@@ -529,7 +532,6 @@ HARD EXCLUSIONS — never add a closing question regardless of any condition:
       .replace(/  +/g, " ")
       .trim();
 
-
     // Phase 4: Paragraph normalization — enforce exactly \n\n between paragraphs
     // This is critical: the frontend splits on \n\n and collapses inner \n to space
     finalReply = finalReply
@@ -544,8 +546,7 @@ HARD EXCLUSIONS — never add a closing question regardless of any condition:
       .filter((p: string) => p.length > 0)  // drop empty paragraphs
       .join("\n\n");                    // rejoin with exactly 2 newlines
 
-
-// Phase 5: Punctuation repair after all removals
+    // Phase 5: Punctuation repair after all removals
     finalReply = finalReply
       .replace(/ ([.,!?])/g, "$1")       // space before punctuation
       .replace(/([.,!?]){2,}/g, "$1")    // duplicate punctuation
@@ -554,7 +555,12 @@ HARD EXCLUSIONS — never add a closing question regardless of any condition:
 
 
 
-    return NextResponse.json({ response: finalReply });
+    return NextResponse.json({
+      response: finalReply,
+      concern_bin: parsedData.analytics?.concern_bin ?? null,
+      urgency: parsedData.analytics?.urgency ?? null,
+      churn_risk: parsedData.analytics?.churn_risk ?? null,
+    });
   } catch (error: unknown) {
     console.error("Generate API Error:", error);
     const errorMessage = error instanceof Error ? error.message : "Failed to generate response.";

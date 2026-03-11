@@ -85,6 +85,12 @@ export async function POST(req: Request) {
     if (!title || content === undefined) {
       return NextResponse.json({ error: "Title and content are required" }, { status: 400 });
     }
+    if (typeof content === "string" && content.length > 100_000) {
+      return NextResponse.json({ error: "KB file content is too large (max 100KB)." }, { status: 400 });
+    }
+    if (typeof title === "string" && title.length > 200) {
+      return NextResponse.json({ error: "Title is too long (max 200 chars)." }, { status: 400 });
+    }
 
     if (originalId === "neurotoned-sitemap.md") {
       return NextResponse.json({ error: "Cannot modify protected system files" }, { status: 403 });
