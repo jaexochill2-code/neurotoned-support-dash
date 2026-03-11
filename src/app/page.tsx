@@ -221,8 +221,10 @@ export default function WorkspacePage() {
               {/* Result State */}
               {!isGenerating && response && (
                 <motion.div key="result" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ type: "spring", stiffness: 300, damping: 25 }}
-                  className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap leading-relaxed text-[16px] md:text-[15px] text-foreground pb-10">
-                  {response}
+                  className="space-y-4 leading-relaxed text-[16px] md:text-[15px] text-foreground pb-10">
+                  {response.split(/\n\n+/).map((para, i) => (
+                    <p key={i} className="">{para.replace(/\n/g, " ")}</p>
+                  ))}
                 </motion.div>
               )}
             </AnimatePresence>
