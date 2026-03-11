@@ -487,7 +487,26 @@ Diagnostic Matrix (Common Scenarios):
       saveToCrm(parsedData.analytics, email).catch(() => {});
     }
 
-    // ── Extract Reply ────────────────────────────────────────────────────────
+    // ── Server-side closing question gate ──────────────────────────────────────
+    // Deterministically strip trailing questions for scenarios that should never have them.
+    // The prompt gate is probabilistic; this is the enforcement layer.
+    if (parsedData.reply && parsedData.analytics) {
+      const EXCLUDED_BINS = ["Technical / Login", "Program Access", "Shipping / Missing Order"];
+      if (EXCLUDED_BINS.includes(parsedData.analytics.concern_bin ?? "")) {
+        // Remove any trailing sentence(s) ending in "?"
+        parsedData.reply = parsedData.reply
+          .split(/
+
+/)
+          .filter((para: string) => !para.trim().endsWith("?") || para.trim().split(/[.!?]/).filter(Boolean).length > 2)
+          .join("
+
+")
+          .trim();
+      }
+    }
+
+// ── Extract Reply ────────────────────────────────────────────────────────
     let finalReply = parsedData.reply?.trim();
     if (!finalReply) {
       return NextResponse.json({ error: "The AI generated an empty reply. Please try again." }, { status: 500 });
@@ -544,7 +563,26 @@ Diagnostic Matrix (Common Scenarios):
       .filter((p: string) => p.length > 0)  // drop empty paragraphs
       .join("\n\n");                    // rejoin with exactly 2 newlines
 
-    // Phase 5: Punctuation repair after all removals
+    // Phase 4.5: Ensure closing question is its own paragraph
+    // If the last paragraph has multiple sentences and ends with "?", split the "?" sentence out.
+    {
+      const paras = finalReply.split("\n\n");
+      const last = paras[paras.length - 1];
+      if (last && last.endsWith("?")) {
+        const sentences = last.match(/[^.!?]+[.!?]+/g) || [last];
+        if (sentences.length > 1) {
+          const questionSentence = sentences.pop()!.trim();
+          const rest = sentences.join(" ").trim();
+          if (rest.length > 0) {
+            paras[paras.length - 1] = rest;
+            paras.push(questionSentence);
+            finalReply = paras.join("\n\n");
+          }
+        }
+      }
+    }
+
+// Phase 5: Punctuation repair after all removals
     finalReply = finalReply
       .replace(/ ([.,!?])/g, "$1")       // space before punctuation
       .replace(/([.,!?]){2,}/g, "$1")    // duplicate punctuation
