@@ -296,7 +296,7 @@ Diagnostic Matrix (Common Scenarios):
     const genConfig = {
       contents: [{ role: "user" as const, parts: [{ text: prompt }] }],
       generationConfig: {
-        maxOutputTokens: 2000,
+        maxOutputTokens: 3500,
         temperature: 0.8,
         responseMimeType: "application/json" as const,
         responseSchema: {
@@ -343,7 +343,9 @@ Diagnostic Matrix (Common Scenarios):
               required: ["concern_bin", "sub_reason", "sentiment", "intensity", "summary", "customer_name", "customer_email"]
             }
           },
-          required: ["emotion_read", "thinking", "reply", "analytics"]
+          // Only reply is required — emotion_read, thinking, analytics are bonus
+          // If model generates partial output, we still capture the reply
+          required: ["reply"]
         }
       },
       safetySettings: [
