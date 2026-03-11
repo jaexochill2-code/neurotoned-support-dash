@@ -11,55 +11,14 @@ export const maxDuration = 60;
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
 
-// ── Voice Persona Cycling ───────────────────────────────────────────────────
-const VOICE_PERSONAS = ["rogers", "brene", "mel", "esther", "glennon"] as const;
-type VoicePersona = (typeof VOICE_PERSONAS)[number];
+// ── Voice Persona Cycling ───────────────────────────────────────────────────
 
-let personaIndex: number = Math.floor(Date.now() / 1000) % VOICE_PERSONAS.length;
-
-function getNextPersona(): VoicePersona {
-  const persona = VOICE_PERSONAS[personaIndex % VOICE_PERSONAS.length];
-  personaIndex++;
-  return persona;
-}
-
-const PERSONA_INSTRUCTIONS: Record<VoicePersona, string> = {
-  rogers:
-`─── YOUR WRITING VOICE: Fred Rogers (The Slow Witness) ───
-Be unhurried. This customer is the only person in the room right now.
-Acknowledge feelings before the problem. Never rush to the solution.
-Make them feel completely safe to be exactly where they are.
-Conversational, warm, medium-short sentences. Reflect their own feeling word back gently if appropriate.
-Ideal for high-distress, shame, or quietly defeated customers.`,
-
-  brene:
-`─── YOUR WRITING VOICE: Brené Brown (The Courage Whisperer) ───
-Lead with vulnerability. Name the hard thing out loud so they don't have to.
-De-shame everything. "There is nothing wrong with you for feeling this way."
+// Writing Voice: Brene Brown (The Courage Whisperer) - permanent single voice
+const WRITING_VOICE = `Your writing voice is Brene Brown (The Courage Whisperer).
+Lead with vulnerability. Name the hard thing out loud so they do not have to.
+De-shame everything. There is nothing wrong with you for feeling this way.
 Peer-level warmth. You are walking beside them, not above them.
-Medium sentences. Grounded, never flowery. Courage over comfort, but always kind.`,
-
-  mel:
-`─── YOUR WRITING VOICE: Mel Robbins (The Warm Activator) ───
-Direct, friendly, zero fluff. "Here's what we're going to do."
-Validate fast, then move into action. Make them feel like they have a friend who actually gets things done.
-Short, punchy sentences. Conversational contractions. Energy without hype.
-Never cold, never preachy. The warmth lives in the confidence.`,
-
-  esther:
-`─── YOUR WRITING VOICE: Esther Perel (The Emotional Translator) ───
-Read the subtext. Name what they haven't said yet.
-Emotionally intelligent, curious, never judgmental. Ask the question they didn't know they needed to hear.
-Medium-length sentences with a gentle rhythm. Let pauses do work.
-Perfect for complicated feelings: ambivalence about cancelling, guilt about refunding, uncertainty about whether something is "working."`,
-
-  glennon:
-`─── YOUR WRITING VOICE: Glennon Doyle (The Raw Truth-Teller) ───
-Honest, no pretense, no performance. "We can do hard things" energy.
-Make them feel brave for reaching out. Reaching out IS the brave thing.
-Short-to-medium sentences. Conversational, grounded, real.
-Never poetic, never flowery. The warmth lives in the rawness and the realness.`,
-};
+Medium sentences. Grounded, never flowery. Courage over comfort, but always kind.`;
 
 
 export async function POST(req: Request) {
@@ -98,8 +57,6 @@ export async function POST(req: Request) {
     const email = concern.raw_customer_email;
 
     // 3. Persona cycling
-    const currentPersona = getNextPersona();
-    const personaInstruction = PERSONA_INSTRUCTIONS[currentPersona];
 
     const model = genAI.getGenerativeModel({
       model: "gemini-2.5-flash",
@@ -200,7 +157,7 @@ SOFT LANDING PROTOCOL (for cancellation/billing anxiety on one-time products):
   3. RESPECT: Never guilt, pressure, or use retention scripts. If they want a refund, honor it immediately per the REFUND PROTOCOL.
   DO NOT use this protocol if the customer explicitly says "I want a refund" or "give me my money back." Those are explicit refund requests and must be handled by the REFUND PROTOCOL — honor immediately, no save attempts.
 
-${personaInstruction}
+${WRITING_VOICE}
 
 CRITICAL VOICE RULE: The NVC empathy protocol above ALWAYS overrides the writing voice. 
 The writing voice governs word choice, rhythm, and sentence structure ONLY.
