@@ -171,7 +171,8 @@ RECONNECT+ PHYSICAL CAPSULES (Neurotoned Reconnect+):
 - REFUND POLICY — 90-day money-back guarantee:
   - 1 or 2 bottles purchased: NO return required. Full refund, no questions.
   - 3 or more bottles: Must return UNOPENED bottles to receive the refund.
-- If a customer says "cancel my subscription" or "stop sending capsules": ask if they have an autoship order. Standard orders do NOT auto-renew. Clarify before assuming.
+- Reconnect+ IS an auto-renewing subscription (autoship). Every order renews automatically until cancelled.
+- CANCELLATION POLICY (Reconnect+): If a customer wants to cancel — CANCEL IT immediately. No save attempts, no conditions, no hoops. Confirm the cancellation and inform them of any refund they are eligible for under the 90-day policy.
 
 RECURRING SUBSCRIPTIONS (the ONLY recurring products):
 - Healing Circles and the Monthly Membership are the ONLY recurring digital subscriptions. These CAN be cancelled.
