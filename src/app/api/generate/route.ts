@@ -207,6 +207,25 @@ Generate 3 keys: "emotion_read", "thinking", and "reply".
 3. WRITING VOICE ACTIVE: Which voice is assigned and how it shapes this reply
 4. PEACE OUTLINE: Problem, Empathy, Answer, Change/Plan, End Result
 
+"analytics" CLASSIFICATION RULES (required — fill every field precisely):
+
+CONCERN BIN: use the first matching rule below. Do NOT default to General Feedback or Other.
+1. Money back on 30-Day Program or 6-Program Bundle = "Program Refund"
+2. Cannot find or access programs in the library = "Program Access"
+3. Wants to cancel Healing Circles, Monthly Membership, or Reconnect+ autoship = "Subscription Cancel"
+4. Surprised by a charge or asks "will I be charged again" = "Billing Confusion"
+5. Cannot log in, password reset, account locked = "Technical / Login"
+6. Question about program content, exercises, or how it works = "Content / Program Question"
+7. Any concern about the Reconnect+ physical capsule product = "Reconnect+ Issue"
+8. Physical package not arrived or missing = "Shipping / Missing Order"
+9. Symptoms, side effects, drug interactions = "Health / Medical"
+10. Praise or neutral suggestion = "General Feedback"
+11. Only if NONE of the above fit = "Other"
+
+URGENCY: critical for any medical. high for explicit refund demand or strong anger. medium for blocked access or billing dispute. low for everything else.
+
+SUMMARY: One sentence. Include product name. Include what they want. Under 20 words. No names.
+
 "reply" RULES:
 - Clean text. No Markdown. No em dashes. No asterisks. No bullet points. No numbered lists.
 - Separate each paragraph with exactly one blank line (two line breaks). Do NOT use single line breaks mid-paragraph.
@@ -306,16 +325,53 @@ Diagnostic Matrix (Common Scenarios):
                 concern_bin: {
                   type: SchemaType.STRING,
                   format: "enum",
-                  enum: ["Refund", "Cancellation", "Product Fit", "Marketing", "Access / Login", "UX / App", "General"]
+                  enum: [
+                    "Reconnect+ Cancel",
+                    "Reconnect+ Refund",
+                    "Program Refund",
+                    "Program Access",
+                    "Billing Confusion",
+                    "Shipping / Missing Order",
+                    "Product Question",
+                    "Technical / Login",
+                    "Health / Medical",
+                    "General Feedback",
+                    "Other"
+                  ],
+                  description: "Pick the MOST specific bin. Reconnect+ Cancel: stop autoship. Reconnect+ Refund: money back on capsules. Program Refund: money back on digital program. Program Access: cannot find or access library. Billing Confusion: surprised by charge, no explicit refund request. Shipping/Missing Order: physical package not received. Product Question: ingredients/dosage/usage. Technical/Login: login failure or account issue. Health/Medical: symptoms or drug interaction concern. General Feedback: praise or neutral suggestion only. Other: truly none of the above."
                 },
-                sub_reason: { type: SchemaType.STRING },
+                sub_reason: {
+                  type: SchemaType.STRING,
+                  description: "Specific driver. Use plain English. Examples: cancel autoship price too high | cancel autoship no reason given | refund 1-2 bottles | refund 3+ bottles | forgot password | programs not in library | surprised by charge after one-time purchase | package not delivered | ingredient interaction question | side effect concern"
+                },
+                root_cause: {
+                  type: SchemaType.STRING,
+                  format: "enum",
+                  enum: ["product_issue", "expectation_mismatch", "billing_confusion", "user_error", "shipping_issue", "health_concern", "life_circumstance", "unclear"],
+                  description: "product_issue: product did not work as expected. expectation_mismatch: customer misunderstood what they bought. billing_confusion: confused about charges. user_error: customer caused the technical issue. shipping_issue: physical delivery problem. health_concern: medical symptoms. life_circumstance: financial hardship or life change. unclear: not enough info to determine."
+                },
+                urgency: {
+                  type: SchemaType.STRING,
+                  format: "enum",
+                  enum: ["critical", "high", "medium", "low"],
+                  description: "critical = any medical concern. high = explicit refund demand or strong anger. medium = access blocked or active billing dispute. low = general question or feedback."
+                },
+                churn_risk: {
+                  type: SchemaType.STRING,
+                  format: "enum",
+                  enum: ["high", "medium", "low"],
+                  description: "high = cancel or refund request with frustration. medium = billing confusion or access issue. low = general question or positive contact."
+                },
                 sentiment: { type: SchemaType.STRING, format: "enum", enum: ["positive", "neutral", "negative"] },
                 intensity: { type: SchemaType.STRING, format: "enum", enum: ["low", "medium", "high"] },
-                summary: { type: SchemaType.STRING, description: "Max 15 words, no names or personal details" },
+                summary: {
+                  type: SchemaType.STRING,
+                  description: "One sentence max 20 words. Must state: product name + core issue + what customer wants. No names. No personal details. Example: Customer wants to cancel Reconnect+ autoship due to price with no refund requested."
+                },
                 customer_name: { type: SchemaType.STRING },
                 customer_email: { type: SchemaType.STRING }
               },
-              required: ["concern_bin", "sub_reason", "sentiment", "intensity", "summary", "customer_name", "customer_email"]
+              required: ["concern_bin", "sub_reason", "root_cause", "urgency", "churn_risk", "sentiment", "intensity", "summary", "customer_name", "customer_email"]
             }
           },
           // Only reply is required — emotion_read, thinking, analytics are bonus
