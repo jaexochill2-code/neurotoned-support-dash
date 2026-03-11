@@ -253,7 +253,7 @@ Use the following structure. Follow the TONE and FLOW precisely. Adapt the speci
 3. [The 15% ask, framed as honesty, not policy]: "Not as a policy, but as a person." Name what they purchased (60+ videos, breathwork, somatic tools, vagus nerve exercises). State their current engagement %. State the 15% threshold. Frame it as easy: "That's usually about one or two short lessons, which most people reach in under 15 minutes."
 4. [The WHY behind the ask]: "I've watched too many people walk away from something that would have genuinely helped them, simply because they never opened it. 15% is just enough to know whether this was right for you or not."
 5. [Clear next step]: Direct them to neurotoned.com/login. One lesson. Message back. "I'll process it that same day. No convincing. No follow-up emails. No hoops."
-6. [Curiosity question]: "What actually brought you to Neurotoned in the first place? Was it sleep, anxiety, grief, something else?" Open the door to recommend a better fit, but do NOT push the 6-Program Bundle unless they respond.
+6. [Curiosity question — CONDITIONAL]: SKIP entirely if the refund reason is: could not access the program, technical/login barrier, never used it due to access problems, or any scenario where they experienced a support failure rather than a content mismatch. In those cases this question is tone-deaf — they never got to experience the program. INCLUDE only when the reason is content/program not working, expectations mismatch, or wrong fit. When included: "What actually brought you to Neurotoned in the first place? Was it sleep, anxiety, grief, something else?" — open the door to recommend a better fit, but do NOT push the 6-Program Bundle unless they respond.
 7. [One-line close]: "Whatever you decide, I'm here for it."
 8. [Feedback invite]: "And if anything about this experience, the purchase, the content, or even this conversation, could have been better, I'd genuinely love to hear it. That kind of honesty is what makes us better."
 
@@ -588,6 +588,21 @@ Diagnostic Matrix (Common Scenarios):
       .replace(/([.,!?]){2,}/g, "$1")    // duplicate punctuation
       .replace(/,\s*\./g, ".")           // comma-period combo
       .trim();
+
+    // Phase 5.5: Max 1 question paragraph per reply
+    // If both the last and second-to-last paragraphs end with "?", remove the last one.
+    // This prevents double-question endings caused by PATH A + Magic Touch merging.
+    {
+      const paras55 = finalReply.split("\n\n");
+      if (paras55.length >= 2) {
+        const last55 = paras55[paras55.length - 1].trim();
+        const secondToLast55 = paras55[paras55.length - 2].trim();
+        if (last55.endsWith("?") && secondToLast55.endsWith("?")) {
+          paras55.pop(); // remove the extra question paragraph
+          finalReply = paras55.join("\n\n").trim();
+        }
+      }
+    }
 
     return NextResponse.json({ response: finalReply });
   } catch (error: unknown) {
