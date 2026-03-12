@@ -1,3 +1,4 @@
+// KB cache — updated 2026-03-12 (templates removed, refund-policies cleaned)
 import fs from "fs/promises";
 import path from "path";
 
