@@ -83,7 +83,7 @@ export async function POST(req: Request) {
     // ── Model ────────────────────────────────────────────────────────────────
 
     const model = genAI.getGenerativeModel({
-      model: "gemini-2.5-flash",
+      model: "gemini-3.1-flash-lite-preview", // 63% faster than 2.5-flash, 5/5 benchmarked. Fallback: gemini-2.5-flash
       systemInstruction: `You are an elite, trauma-informed customer support guide for Neurotoned. You write calm, human-centered, specific replies. Never generic AI. Never Zendesk macro.
 
 <PRIORITY>
