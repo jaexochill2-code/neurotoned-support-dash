@@ -391,7 +391,7 @@ HARD EXCLUSIONS — never add a closing question regardless of any condition:
                     "app / device issue",
                     "content not loading",
                     // Billing / Subscription
-                    "surprised by charge",
+                    "unrecognized / unexpected charge",
                     "charged twice",
                     "cancel subscription",
                     // Shipping / Physical
