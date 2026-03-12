@@ -229,7 +229,7 @@ export function ConcernAnalyticsChart() {
         </div>
 
         {/* Chart + Legend layout */}
-        <div className="flex flex-col lg:flex-row items-center justify-center px-10 pb-12 pt-4 gap-16">
+        <div className="flex flex-row items-start justify-center px-8 pb-10 pt-4 gap-10">
 
           {/* ── Donut ── */}
           <AnimatePresence mode="wait">
@@ -240,15 +240,15 @@ export function ConcernAnalyticsChart() {
               exit={{ opacity: 0, scale: 0.96 }}
               transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
               className="relative shrink-0"
-              style={{ width: 440, height: 440 }}
+              style={{ width: 360, height: 360 }}
             >
               <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
+                <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
                   <Pie
                     data={chartData.length > 0 ? chartData : [{ name: "No data", count: 1, fill: "#152218" }]}
                     cx="50%" cy="50%"
-                    innerRadius={150}
-                    outerRadius={210}
+                    innerRadius={118}
+                    outerRadius={170}
                     paddingAngle={chartData.length > 1 ? 3 : 0}
                     dataKey="count"
                     stroke="none"
@@ -282,7 +282,7 @@ export function ConcernAnalyticsChart() {
                     transition={{ duration: 0.2 }}
                     className="text-center"
                   >
-                    <span className="text-[72px] font-extrabold font-heading leading-none text-white tracking-tight">
+                    <span className="text-[60px] font-extrabold font-heading leading-none text-white tracking-tight">
                       {chartData.length > 0 ? total : 0}
                     </span>
                     <span className="block text-[12px] font-semibold uppercase tracking-[0.15em] text-[#3A5E48] mt-2">
@@ -295,7 +295,7 @@ export function ConcernAnalyticsChart() {
           </AnimatePresence>
 
           {/* ── Legend ── */}
-          <div className="flex-1 w-full max-w-[280px]">
+          <div className="flex-1 w-full max-w-[300px] overflow-y-auto" style={{ maxHeight: 360 }}>
             <AnimatePresence mode="wait">
               <motion.div
                 key={`${selected ?? "__top_legend__"}_${timeRange ?? "all"}`}
