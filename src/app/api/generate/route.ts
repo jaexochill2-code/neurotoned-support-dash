@@ -364,7 +364,38 @@ HARD EXCLUSIONS — never add a closing question regardless of any condition:
                 },
                 sub_reason: {
                   type: SchemaType.STRING,
-                  description: "Specific driver. Use plain English. Examples: cancel autoship price too high | cancel autoship no reason given | refund 1-2 bottles | refund 3+ bottles | forgot password | programs not in library | surprised by charge after one-time purchase | package not delivered | ingredient interaction question | side effect concern"
+                  format: "enum",
+                  enum: [
+                    // Program Refund
+                    "not seeing results",
+                    "expectations mismatch",
+                    "low / no engagement",
+                    "duplicate purchase",
+                    "anger / scam accusation",
+                    "financial hardship",
+                    "no reason given",
+                    // Program Access / Technical
+                    "program not in library",
+                    "cannot log in",
+                    "app / device issue",
+                    "content not loading",
+                    // Billing / Subscription
+                    "surprised by charge",
+                    "charged twice",
+                    "cancel subscription",
+                    // Reconnect+ / Physical
+                    "cancel autoship",
+                    "physical product refund",
+                    "shipping delayed / missing",
+                    "side effect concern",
+                    "ingredient / dosage question",
+                    // Content / Health / General
+                    "program usage question",
+                    "medication interaction",
+                    "positive feedback",
+                    "unclear / other",
+                  ],
+                  description: "Pick the SINGLE most specific value that describes why the customer contacted. Do NOT invent values. 'unclear / other' only if none apply.",
                 },
                 root_cause: {
                   type: SchemaType.STRING,
