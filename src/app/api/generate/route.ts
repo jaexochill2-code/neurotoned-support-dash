@@ -15,9 +15,19 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 // ── Analytics: Fire-and-forget save to CRM ──────────────────────────────────
 const VALID_BINS = ["Program Refund", "Program Access", "Subscription Cancel", "Billing Confusion", "Technical / Login", "Content / Program Question", "Reconnect+ Issue", "Shipping / Missing Order", "Health / Medical", "General Feedback", "Other"];
 
+// ── Reconnect+ bins are excluded from analytics (handled separately) ─────────
+const RECONNECT_BINS = ["Reconnect+ Cancel", "Reconnect+ Refund"];
+
 async function saveToCrm(analytics: Record<string, string>, rawEmail: string) {
   try {
     const rawBin = analytics.concern_bin || "Other";
+
+    // Skip Reconnect+ — not tracked in digital program analytics
+    if (RECONNECT_BINS.includes(rawBin)) {
+      console.log("[CRM] Skipping Reconnect+ entry (not tracked in dashboard)");
+      return;
+    }
+
     const category = VALID_BINS.includes(rawBin) ? rawBin : "Other";
     const severityMap: Record<string, string> = { low: "Low", medium: "Medium", high: "High" };
     const severity = severityMap[analytics.intensity?.toLowerCase()] ?? "Medium";
@@ -26,7 +36,7 @@ async function saveToCrm(analytics: Record<string, string>, rawEmail: string) {
       customer_name: analytics.customer_name ?? "Anonymous",
       customer_email_address: analytics.customer_email ?? "unknown@unknown.com",
       concern_category: category,
-      sub_reason: analytics.sub_reason ?? "other",
+      sub_reason: analytics.sub_reason ?? "pending detailed feedback",
       concern_summary: analytics.summary ?? "",
       severity_distress_level: severity,
       raw_customer_email: rawEmail,
@@ -366,14 +376,15 @@ HARD EXCLUSIONS — never add a closing question regardless of any condition:
                   type: SchemaType.STRING,
                   format: "enum",
                   enum: [
-                    // Program Refund
-                    "not seeing results",
-                    "expectations mismatch",
-                    "low / no engagement",
-                    "duplicate purchase",
-                    "anger / scam accusation",
-                    "financial hardship",
-                    "no reason given",
+                    // Program Refund — the customer's STATED reason from their words.
+                    // Do NOT use engagement % here — that is a criteria, not a reason.
+                    "not seeing results",           // customer says program isn't working for them
+                    "expectations mismatch",         // program wasn't what they expected
+                    "not the right time / life circumstances", // timing, busy, life event
+                    "financial hardship",             // customer states money/cost reason
+                    "duplicate purchase",             // bought the same thing twice
+                    "anger / scam accusation",        // aggressive tone, feels deceived
+                    "pending detailed feedback",      // customer hasn't stated a clear reason yet
                     // Program Access / Technical
                     "program not in library",
                     "cannot log in",
@@ -383,19 +394,17 @@ HARD EXCLUSIONS — never add a closing question regardless of any condition:
                     "surprised by charge",
                     "charged twice",
                     "cancel subscription",
-                    // Reconnect+ / Physical
-                    "cancel autoship",
-                    "physical product refund",
+                    // Shipping / Physical
                     "shipping delayed / missing",
+                    // Content / Health / General
                     "side effect concern",
                     "ingredient / dosage question",
-                    // Content / Health / General
                     "program usage question",
                     "medication interaction",
                     "positive feedback",
                     "unclear / other",
                   ],
-                  description: "Pick the SINGLE most specific value that describes why the customer contacted. Do NOT invent values. 'unclear / other' only if none apply.",
+                  description: "Pick the customer's STATED reason from their email — NOT engagement metrics or internal criteria. Engagement % is a processing guideline, not their reason. 'pending detailed feedback' if no clear reason stated. 'unclear / other' only as a last resort.",
                 },
                 root_cause: {
                   type: SchemaType.STRING,
