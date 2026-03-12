@@ -401,6 +401,8 @@ HARD EXCLUSIONS — never add a closing question regardless of any condition:
                     "ingredient / dosage question",
                     "program usage question",
                     "medication interaction",
+                    "emotional distress / body safety",  // customer distressed by content/body experience
+                    "positive engagement",               // customer sharing resonance, no complaint
                     "positive feedback",
                     "unclear / other",
                   ],
