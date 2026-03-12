@@ -16,7 +16,7 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 const VALID_BINS = ["Program Refund", "Program Access", "Subscription Cancel", "Billing Confusion", "Technical / Login", "Content / Program Question", "Reconnect+ Issue", "Shipping / Missing Order", "Health / Medical", "General Feedback", "Other"];
 
 // ── Reconnect+ bins are excluded from analytics (handled separately) ─────────
-const RECONNECT_BINS = ["Reconnect+ Cancel", "Reconnect+ Refund"];
+const RECONNECT_BINS = ["Reconnect+ Cancel", "Reconnect+ Refund", "Reconnect+ Issue"];
 
 async function saveToCrm(analytics: Record<string, string>, rawEmail: string) {
   try {
@@ -322,31 +322,12 @@ HARD EXCLUSIONS — never add a closing question regardless of any condition:
     const genConfig = {
       contents: [{ role: "user" as const, parts: [{ text: prompt }] }],
       generationConfig: {
-        maxOutputTokens: 3500,
-        temperature: 0.7,
+        maxOutputTokens: 2000,
+        temperature: 0.4,
         responseMimeType: "application/json" as const,
         responseSchema: {
           type: SchemaType.OBJECT as SchemaType.OBJECT,
           properties: {
-            emotion_read: {
-              type: SchemaType.OBJECT,
-              properties: {
-                primary_emotion: { type: SchemaType.STRING, description: "Primary emotion detected" },
-                secret_fear: { type: SchemaType.STRING, description: "What they are secretly afraid of or embarrassed by" },
-                thought_narration: { type: SchemaType.STRING, description: "The thought-narration sentence you will use" }
-              },
-              required: ["primary_emotion", "secret_fear", "thought_narration"]
-            },
-            thinking: {
-              type: SchemaType.OBJECT,
-              properties: {
-                context: { type: SchemaType.STRING, description: "Technical/logistical reality" },
-                resolution_check: { type: SchemaType.STRING, description: "Billing anxiety, dissatisfaction, or explicit refund?" },
-                writing_voice: { type: SchemaType.STRING, description: "Which voice is active and how it shapes this reply" },
-                peace_outline: { type: SchemaType.STRING, description: "Problem, Empathy, Answer, Change/Plan, End Result" }
-              },
-              required: ["context", "resolution_check", "writing_voice", "peace_outline"]
-            },
             reply: {
               type: SchemaType.STRING,
               description: "The final email reply. Plain text only. No markdown, no em dashes, no asterisks, no bullet points. Separate every paragraph with exactly two newlines (\\n\\n). Do not use single newlines mid-paragraph. Each paragraph is one cohesive thought."
@@ -358,19 +339,19 @@ HARD EXCLUSIONS — never add a closing question regardless of any condition:
                   type: SchemaType.STRING,
                   format: "enum",
                   enum: [
-                    "Reconnect+ Cancel",
-                    "Reconnect+ Refund",
                     "Program Refund",
                     "Program Access",
+                    "Subscription Cancel",
                     "Billing Confusion",
-                    "Shipping / Missing Order",
-                    "Product Question",
                     "Technical / Login",
+                    "Content / Program Question",
+                    "Reconnect+ Issue",
+                    "Shipping / Missing Order",
                     "Health / Medical",
                     "General Feedback",
                     "Other"
                   ],
-                  description: "Pick the MOST specific bin. Reconnect+ Cancel: stop autoship. Reconnect+ Refund: money back on capsules. Program Refund: money back on digital program. Program Access: cannot find or access library. Billing Confusion: surprised by charge, no explicit refund request. Shipping/Missing Order: physical package not received. Product Question: ingredients/dosage/usage. Technical/Login: login failure or account issue. Health/Medical: symptoms or drug interaction concern. General Feedback: praise or neutral suggestion only. Other: truly none of the above."
+                  description: "Follow the routing rules exactly. Program Refund: money back on digital program. Program Access: cannot find/access library. Subscription Cancel: cancel Healing Circles, Monthly Membership, or any recurring digital subscription. Billing Confusion: confused about a charge, no explicit refund demand. Technical/Login: login failure, password reset, account issue. Content/Program Question: how-to, exercises, program content question. Reconnect+ Issue: any physical capsule concern — EXCLUDED from analytics. Shipping/Missing Order: physical package not received. Health/Medical: symptoms, side effects, drug interactions. General Feedback: praise or neutral suggestion. Other: truly none of the above."
                 },
                 sub_reason: {
                   type: SchemaType.STRING,
