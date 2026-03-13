@@ -592,6 +592,14 @@ HARD EXCLUSIONS — never add a closing question regardless of any condition:
       }
     }
 
+    // ── Cancellation feedback question — deterministic append ─────────────────
+    // Fires exactly when the AI classifies this as Subscription Cancel.
+    // No prompt changes or routing needed — we just append it server-side, guaranteed.
+    if (parsedData.analytics?.concern_bin === "Subscription Cancel") {
+      parsedData.reply = (parsedData.reply ?? "").trimEnd()
+        + "\n\nBefore we fully part ways, I'd love to ask you two quick things, and please, absolutely no pressure to respond. What ultimately led you to this decision today? And is there anything specific about your experience that we could have done better, or improved, that might have made a difference for you? Even a sentence or two would mean a lot to us."
+    }
+
     // ── Extract Reply ────────────────────────────────────────────────────────
     let finalReply = parsedData.reply?.trim();
     if (!finalReply) {
