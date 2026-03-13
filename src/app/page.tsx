@@ -124,6 +124,9 @@ export default function WorkspacePage() {
       const parts: string[] = []
       if (cancelProgramName.trim()) parts.push(`Program: ${cancelProgramName.trim()}`)
       parts.push('Customer is requesting a cancellation. Apply the Soft Landing Protocol if appropriate — check whether this is a one-time product (no recurring charge) and relieve billing anxiety first.')
+      // Mandatory closing: a warm, 2-part feedback question. Must feel like genuine curiosity, never a survey or a retention gate.
+      // The question covers (1) what led them to cancel and (2) what we could improve. Low pressure, no conditions on help.
+      parts.push('MANDATORY CLOSING QUESTION: End the reply with a single, flowing, 2-part question that gently asks: (1) what ultimately led them to this decision, and (2) whether there is anything specific we could have done better or improved that would have made a difference. Frame it as warm, honest curiosity — not a survey, not a save attempt, not conditional on anything. Give explicit permission to skip it. Example tone: "Before we part ways — and truly, no pressure at all to respond — I\'d love to ask: what ultimately led you here today? And is there anything we could have done differently, or something specific we could improve, that might have changed things for you? Even a few words would mean a lot to us." Generate fresh from the customer\'s specific situation — never copy this example verbatim.')
       return parts.join(' | ')
     }
     // Login enrichment
