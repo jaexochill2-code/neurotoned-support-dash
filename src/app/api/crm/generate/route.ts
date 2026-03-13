@@ -59,7 +59,7 @@ export async function POST(req: Request) {
     // 3. Persona cycling
 
     const model = genAI.getGenerativeModel({
-      model: "gemini-2.5-flash",
+      model: "gemini-3.1-flash-lite-preview",
       systemInstruction: `You are an elite, deeply empathetic, trauma-informed customer support guide for Neurotoned.
 You write calming, human-centered, fiercely supportive replies. Never sound like a generic AI or a standard Zendesk macro.
 
@@ -291,8 +291,8 @@ Diagnostic Matrix (Common Scenarios):
       contents: [{ role: "user" as const, parts: [{ text: prompt }] }],
       generationConfig: { 
         maxOutputTokens: 1500,
-        temperature: 0.8,
-        thinkingConfig: { thinkingBudget: 4096 },
+        temperature: 0.4,
+
         responseMimeType: "application/json" as const,
         responseSchema: {
           type: SchemaType.OBJECT as SchemaType.OBJECT,

@@ -213,8 +213,10 @@ export function ResolutionWorkspaceClient({ initialConcern }: { initialConcern: 
             )}
 
             {!isGenerating && response && (
-              <motion.div key="result" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="prose prose-sm max-w-none whitespace-pre-wrap leading-relaxed text-[15px] text-foreground pb-10">
-                {response}
+              <motion.div key="result" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4 leading-relaxed text-[15px] text-foreground pb-10">
+                {response.split(/\n\n+/).map((para, i) => (
+                  <p key={i}>{para.replace(/\n/g, " ")}</p>
+                ))}
               </motion.div>
             )}
           </AnimatePresence>

@@ -4,8 +4,8 @@ category: Logins & Passwords
 brand: All
 ---
 ## Serotoned
-- Support Email: support@serotoned.com / Password: BamaBitches
-- Instagram: @serotoned01 / Password: AlabamaApples
+- Support Email: support@serotoned.com
+- Instagram: @serotoned01
 
 ## Neurotoned
 - Support Email: support@neurotoned.com
