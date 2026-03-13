@@ -592,12 +592,22 @@ HARD EXCLUSIONS — never add a closing question regardless of any condition:
       }
     }
 
-    // ── Cancellation feedback question — deterministic append ─────────────────
+    // ── Cancellation feedback question — deterministic insert ─────────────────
     // Fires exactly when the AI classifies this as Subscription Cancel.
-    // No prompt changes or routing needed — we just append it server-side, guaranteed.
+    // We insert BEFORE the "If anything seems unclear" canned closer if present,
+    // so the reply reads: [resolution] → [feedback question] → [canned closer].
+    // If the canned line isn't there, we simply append at the end.
     if (parsedData.analytics?.concern_bin === "Subscription Cancel") {
-      parsedData.reply = (parsedData.reply ?? "").trimEnd()
-        + "\n\nBefore we fully part ways, I'd love to ask you two quick things, and please, absolutely no pressure to respond. What ultimately led you to this decision today? And is there anything specific about your experience that we could have done better, or improved, that might have made a difference for you? Even a sentence or two would mean a lot to us."
+      const feedbackQ = "Before we fully part ways, I'd love to ask you two quick things, and please, absolutely no pressure to respond. What ultimately led you to this decision today? And is there anything specific about your experience that we could have done better, or improved, that might have made a difference for you? Even a sentence or two would mean a lot to us.";
+      const paragraphs = (parsedData.reply ?? "").trimEnd().split("\n\n");
+      const lastIdx = paragraphs.length - 1;
+      // Detect the permitted canned closer so we can insert before it
+      if (lastIdx >= 0 && paragraphs[lastIdx].includes("If anything seems unclear")) {
+        paragraphs.splice(lastIdx, 0, feedbackQ); // insert before canned closer
+      } else {
+        paragraphs.push(feedbackQ); // no canned closer — append at end
+      }
+      parsedData.reply = paragraphs.join("\n\n");
     }
 
     // ── Extract Reply ────────────────────────────────────────────────────────
