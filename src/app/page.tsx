@@ -19,12 +19,23 @@ export default function WorkspacePage() {
 
   // ── Refund detection ────────────────────────────────────────────────────
   const [engagementPct, setEngagementPct] = useState("")
-  const [exceptionNote, setExceptionNote] = useState("")
+  const [programName, setProgramName] = useState("") // Mandatory program field (replaces Exception)
+  const [alreadyRefunded, setAlreadyRefunded] = useState(false) // Checkbox: refund already processed
   const [refundSkipped, setRefundSkipped] = useState(false)
 
   const REFUND_KEYWORDS = ['refund', 'money back', 'want my money', 'get my money', 'return my money', 'give me my money']
   const isRefundDetected = REFUND_KEYWORDS.some(kw => email.toLowerCase().includes(kw))
-  const refundFilled = engagementPct.trim() !== '' || exceptionNote.trim() !== ''
+  // Gate passes only when Program field is filled (or skipped)
+  const refundFilled = programName.trim() !== ''
+
+  // ── Cancellation detection ───────────────────────────────────────────────
+  const [cancelProgramName, setCancelProgramName] = useState("") // Mandatory program field
+  const [cancelSkipped, setCancelSkipped] = useState(false)
+
+  const CANCEL_KEYWORDS = ['cancel', 'cancellation', 'unsubscribe', 'stop my subscription', 'end my subscription', 'end my membership', 'cancel my membership', 'cancel subscription', 'cancel my plan']
+  // Cancellation only fires when NOT already a refund (refund takes priority)
+  const isCancelDetected = !isRefundDetected && CANCEL_KEYWORDS.some(kw => email.toLowerCase().includes(kw))
+  const cancelFilled = cancelProgramName.trim() !== ''
   
   // ── Login detection (only when not a refund email — refund takes priority) ───────
   const [passwordResetDone, setPasswordResetDone] = useState(false)
@@ -35,7 +46,8 @@ export default function WorkspacePage() {
   const isLoginDetected = !isRefundDetected && LOGIN_KEYWORDS.some(kw => email.toLowerCase().includes(kw))
 
   const generateBlocked =
-    (isRefundDetected && !refundSkipped && !(engagementPct.trim() || exceptionNote.trim())) ||
+    (isRefundDetected && !refundSkipped && !refundFilled) ||
+    (isCancelDetected && !cancelSkipped && !cancelFilled) ||
     (isLoginDetected && !loginSkipped && !passwordResetDone)
 
   const [activeTab, setActiveTab] = useState<"message" | "reply">("message")
@@ -64,9 +76,18 @@ export default function WorkspacePage() {
     if (!isRefundDetected) {
       setRefundSkipped(false)
       setEngagementPct("")
-      setExceptionNote("")
+      setProgramName("")
+      setAlreadyRefunded(false)
     }
   }, [isRefundDetected])
+
+  // Reset cancellation fields when email changes away from cancellation
+  useEffect(() => {
+    if (!isCancelDetected) {
+      setCancelSkipped(false)
+      setCancelProgramName("")
+    }
+  }, [isCancelDetected])
 
   // Reset login fields when email changes away from login
   useEffect(() => {
@@ -79,9 +100,12 @@ export default function WorkspacePage() {
 
   // Build the context string to send
   const buildContext = () => {
-    // Refund enrichment
+    // Refund enrichment — now includes mandatory program name and optional already-refunded flag
     if (isRefundDetected && !refundSkipped) {
       const parts: string[] = []
+      // Inject program name so AI can customize the reply to the specific product
+      if (programName.trim()) parts.push(`Program: ${programName.trim()}`)
+      // Inject engagement with PATH routing hint
       if (engagementPct.trim()) {
         const pct = parseFloat(engagementPct)
         const hint = !isNaN(pct)
@@ -91,8 +115,16 @@ export default function WorkspacePage() {
           : `${engagementPct}%`
         parts.push(`Engagement: ${hint}`)
       }
-      if (exceptionNote.trim()) parts.push(`Exception: ${exceptionNote.trim()}`)
+      // If already refunded, AI should confirm/acknowledge rather than process
+      if (alreadyRefunded) parts.push('NOTE: Refund has already been processed. Generate a warm confirmation reply, do NOT say you are processing it now.')
       return parts.length > 0 ? parts.join(' | ') : undefined
+    }
+    // Cancellation enrichment — program name is mandatory for route customisation
+    if (isCancelDetected && !cancelSkipped) {
+      const parts: string[] = []
+      if (cancelProgramName.trim()) parts.push(`Program: ${cancelProgramName.trim()}`)
+      parts.push('Customer is requesting a cancellation. Apply the Soft Landing Protocol if appropriate — check whether this is a one-time product (no recurring charge) and relieve billing anxiety first.')
+      return parts.join(' | ')
     }
     // Login enrichment
     if (isLoginDetected && passwordResetDone) {
@@ -236,6 +268,31 @@ export default function WorkspacePage() {
                     </button>
                   </div>
 
+                  {/* Program — MANDATORY for customised reply */}
+                  <div>
+                    <label className="text-[10px] text-[#547A63] font-medium mb-1 block">
+                      Program <span className="text-amber-400 font-bold">(required)</span>
+                    </label>
+                    {/* Tooltip helper — explains exactly what to enter */}
+                    <p className="text-[10px] text-[#3A5E48] mb-1.5 leading-snug">
+                      Enter the exact program name(s) as they appear in Kajabi — e.g. "30-Day Somatic Program" or "6-Program Bundle". This is used to personalise the reply.
+                    </p>
+                    <input
+                      type="text"
+                      value={programName}
+                      onChange={(e) => setProgramName(e.target.value)}
+                      placeholder="e.g. 30-Day Somatic Program"
+                      className={`w-full rounded-lg border px-3 py-2 text-[13px] text-[#F4F8F5] placeholder:text-[#547A63]/50 focus:outline-none focus:ring-1 transition-all ${
+                        programName.trim()
+                          ? 'border-emerald-500/40 bg-emerald-500/5 focus:ring-emerald-500/30'
+                          : 'border-amber-500/40 bg-[#0D1E14]/50 focus:ring-amber-500/40 focus:border-amber-500/30'
+                      }`}
+                    />
+                    {!programName.trim() && (
+                      <p className="text-[10px] mt-1 text-amber-400/80">⚠ Program name is required to generate a reply.</p>
+                    )}
+                  </div>
+
                   {/* Engagement % */}
                   <div>
                     <label className="text-[10px] text-[#547A63] font-medium mb-1 block">
@@ -259,18 +316,61 @@ export default function WorkspacePage() {
                     )}
                   </div>
 
-                  {/* Exception */}
+                  {/* Already Refunded checkbox — generates a confirmation reply instead */}
+                  <label className="flex items-start gap-2.5 cursor-pointer group/check">
+                    <input
+                      type="checkbox"
+                      checked={alreadyRefunded}
+                      onChange={(e) => setAlreadyRefunded(e.target.checked)}
+                      className="mt-0.5 h-3.5 w-3.5 rounded border-amber-500/40 accent-amber-400 cursor-pointer shrink-0"
+                    />
+                    <span className="text-[12px] text-[#F4F8F5] leading-snug group-hover/check:text-amber-300 transition-colors">
+                      Already refunded — generate a confirmation reply instead
+                    </span>
+                  </label>
+                </motion.div>
+              ) : isCancelDetected && !cancelSkipped ? (
+                // ── Cancellation Gate ─────────────────────────────────────
+                <motion.div
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="rounded-lg border border-violet-500/30 bg-violet-500/5 p-3 space-y-3"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-semibold tracking-widest text-violet-400 uppercase">
+                      Cancellation detected — context required
+                    </span>
+                    <button
+                      onClick={() => setCancelSkipped(true)}
+                      className="text-[10px] text-[#547A63] hover:text-[#F4F8F5] underline underline-offset-2 transition-colors"
+                    >
+                      Skip and generate anyway
+                    </button>
+                  </div>
+
+                  {/* Program — MANDATORY */}
                   <div>
                     <label className="text-[10px] text-[#547A63] font-medium mb-1 block">
-                      Exception <span className="text-[#3A5E48]">(optional)</span>
+                      Program <span className="text-violet-400 font-bold">(required)</span>
                     </label>
+                    {/* Clear tooltip so agent knows exactly what to type */}
+                    <p className="text-[10px] text-[#3A5E48] mb-1.5 leading-snug">
+                      Enter the exact program name(s) as they appear in Kajabi — e.g. "Healing Circles Monthly" or "30-Day Somatic Program". This ensures the reply is fully personalised and trackable.
+                    </p>
                     <input
                       type="text"
-                      value={exceptionNote}
-                      onChange={(e) => setExceptionNote(e.target.value)}
-                      placeholder="e.g. Manager approved, VIP customer, second refund request"
-                      className="w-full rounded-lg border border-[#152218] bg-[#0D1E14]/50 px-3 py-2 text-[13px] text-[#F4F8F5] placeholder:text-[#547A63]/50 focus:outline-none focus:ring-1 focus:ring-amber-500/40 focus:border-amber-500/30 transition-all"
+                      value={cancelProgramName}
+                      onChange={(e) => setCancelProgramName(e.target.value)}
+                      placeholder="e.g. Healing Circles Monthly"
+                      className={`w-full rounded-lg border px-3 py-2 text-[13px] text-[#F4F8F5] placeholder:text-[#547A63]/50 focus:outline-none focus:ring-1 transition-all ${
+                        cancelProgramName.trim()
+                          ? 'border-emerald-500/40 bg-emerald-500/5 focus:ring-emerald-500/30'
+                          : 'border-violet-500/40 bg-[#0D1E14]/50 focus:ring-violet-500/40 focus:border-violet-500/30'
+                      }`}
                     />
+                    {!cancelProgramName.trim() && (
+                      <p className="text-[10px] mt-1 text-violet-400/80">⚠ Program name is required to generate a reply.</p>
+                    )}
                   </div>
                 </motion.div>
               ) : isLoginDetected && !loginSkipped ? (
